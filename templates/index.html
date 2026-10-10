@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Laboratorio didáctico para recorrer algoritmos paso a paso.">
+  <title>Laboratorio didáctico de algoritmos</title>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/matrix.css') }}">
+</head>
+<body>
+  {% include "_nav.html" %}
+
+<main class="layout-container page-grid">
+    <article class="intro-block">
+      <p class="eyebrow">LABORATORIO · CINCO ALGORITMOS</p>
+      <h1>Haz visible cómo aprende un árbol.</h1>
+      <p class="lead">Avanza una decisión a la vez. El sistema muestra qué mide, por qué lo mide, qué probabilidad tiene cada rama y qué cambia en la estructura.</p>
+    </article>
+
+    <section id="arboles" class="workspace-card" aria-labelledby="titulo-arbol">
+      <header class="section-heading">
+        <div>
+          <p class="eyebrow">ALGORITMO ACTIVO</p>
+          <h2 id="titulo-arbol">Crecimiento y recorrido</h2>
+        </div>
+        <p id="status-line" class="status-line" role="status">Listo para construir un árbol.</p>
+      </header>
+
+      <form id="tree-form" class="control-grid">
+        <fieldset class="field-group">
+          <legend>Variable objetivo</legend>
+          <label for="target-input">Nombre de la clase</label>
+          <input id="target-input" name="target" value="Jugar" autocomplete="off" spellcheck="false">
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Criterio de división</legend>
+          <label for="criterion-select">Cómo medimos la mezcla</label>
+          <select id="criterion-select" name="criterion">
+            <option value="entropy">Entropía + Ganancia de Información</option>
+            <option value="gini">Gini + Reducción de impureza</option>
+          </select>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Profundidad máxima</legend>
+          <label for="depth-input">Niveles permitidos</label>
+          <input id="depth-input" name="max_depth" type="number" min="1" max="8" step="1" value="4">
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Ejemplo para recorrer</legend>
+          <label for="sample-input">Índice de fila</label>
+          <input id="sample-input" name="sample_index" type="number" min="0" max="99" step="1" value="0">
+        </fieldset>
+
+        <fieldset class="field-group field-group--wide">
+          <legend>Datos de aprendizaje</legend>
+          <label for="dataset-input">Una fila JSON por objeto, separando campos con comas dentro de cada objeto.</label>
+          <textarea id="dataset-input" rows="8" spellcheck="false">[
+  {"Clima":"Soleado","Humedad":"Alta","Viento":"Débil","Jugar":"No"},
+  {"Clima":"Soleado","Humedad":"Alta","Viento":"Fuerte","Jugar":"No"},
+  {"Clima":"Nublado","Humedad":"Alta","Viento":"Débil","Jugar":"Sí"},
+  {"Clima":"Nublado","Humedad":"Alta","Viento":"Fuerte","Jugar":"Sí"},
+  {"Clima":"Lluvia","Humedad":"Alta","Viento":"Débil","Jugar":"Sí"},
+  {"Clima":"Lluvia","Humedad":"Normal","Viento":"Débil","Jugar":"Sí"},
+  {"Clima":"Lluvia","Humedad":"Normal","Viento":"Fuerte","Jugar":"No"},
+  {"Clima":"Nublado","Humedad":"Normal","Viento":"Fuerte","Jugar":"Sí"},
+  {"Clima":"Soleado","Humedad":"Normal","Viento":"Débil","Jugar":"Sí"},
+  {"Clima":"Soleado","Humedad":"Normal","Viento":"Fuerte","Jugar":"Sí"}
+]</textarea>
+        </fieldset>
+
+        <button id="build-button" type="submit" class="ui-button ui-button--primary">CONSTRUIR PASO A PASO</button>
+      </form>
+
+      <section id="tree-problem-data" class="problem-data-host" aria-label="Datos del problema"></section>
+
+      <section id="playback" class="playback" aria-label="Controles de ejecución">
+        <div class="playback__buttons">
+          <button id="previous-button" class="ui-button" type="button">PASO ANTERIOR</button>
+          <button id="next-button" class="ui-button ui-button--primary" type="button">PASO SIGUIENTE</button>
+          <button id="play-button" class="ui-button" type="button">REPRODUCIR / AUTO-ANIMAR</button>
+          <button id="pause-button" class="ui-button" type="button">PAUSAR</button>
+          <button id="reset-button" class="ui-button" type="button">REINICIAR</button>
+        </div>
+        <label class="speed-control" for="speed-input">Velocidad <output id="speed-output">1.0×</output>
+          <input id="speed-input" type="range" min="0.5" max="2.5" step="0.1" value="1">
+        </label>
+      </section>
+
+      <div id="sandbox-message" class="sandbox-message" role="alert" aria-live="polite" hidden></div>
+
+      <section class="learning-grid">
+        <article class="tree-panel" aria-labelledby="tree-panel-title">
+          <header class="panel-header">
+            <div>
+              <p class="eyebrow">FOCO VISUAL</p>
+              <h3 id="tree-panel-title">Árbol en construcción</h3>
+            </div>
+            <p id="step-counter" class="step-counter">Paso 0 / 0</p>
+          </header>
+          <div id="tree-canvas" class="tree-canvas" aria-live="polite">
+            <p class="empty-state">Construye el árbol y comienza con <strong>Paso siguiente</strong>.</p>
+          </div>
+        </article>
+
+        <aside class="inspector" aria-labelledby="inspector-title">
+          <header class="panel-header">
+            <p class="eyebrow">INSPECTOR CONTEXTUAL</p>
+            <h3 id="inspector-title">¿Qué está ocurriendo?</h3>
+          </header>
+          <section class="inspector-block">
+            <h4>Fase</h4>
+            <p id="phase-value">Esperando una ejecución.</p>
+          </section>
+          <section class="inspector-block">
+            <h4>Acción actual</h4>
+            <p id="title-value">Todavía no hay un paso activo.</p>
+          </section>
+          <section class="inspector-block">
+            <h4>Fórmula exacta</h4>
+            <pre id="formula-value">—</pre>
+          </section>
+          <section class="inspector-block">
+            <h4>¿Por qué?</h4>
+            <p id="why-value">La explicación aparecerá aquí cuando avances.</p>
+          </section>
+          <section class="inspector-block">
+            <h4>Variables actuales</h4>
+            <table class="variables-table">
+              <thead><tr><th>Variable</th><th>Valor</th></tr></thead>
+              <tbody id="variables-body"><tr><td colspan="2">—</td></tr></tbody>
+            </table>
+          </section>
+        </aside>
+      </section>
+    </section>
+
+    <section id="metodo" class="method-strip" aria-labelledby="method-title">
+      <p class="eyebrow">LECTURA GUIADA</p>
+      <h2 id="method-title">Tres preguntas para seguir cada paso</h2>
+      <ol>
+        <li><strong>¿Qué mide?</strong> Observa la fórmula antes de mirar el resultado.</li>
+        <li><strong>¿Por qué ahora?</strong> La narración conecta la operación con la decisión del árbol.</li>
+        <li><strong>¿Qué cambió?</strong> El nodo activo y la rama resaltada muestran el efecto.</li>
+      </ol>
+    </section>
+
+    <section id="criterio" class="formula-note" aria-labelledby="criterion-title">
+      <p class="eyebrow">TRANSPARENCIA MATEMÁTICA</p>
+      <h2 id="criterion-title">Criterios disponibles</h2>
+      <p><strong>Entropía:</strong> H(S) = -Σ p(c) log₂ p(c). La ganancia compara la impureza antes y después de dividir.</p>
+      <p><strong>Gini:</strong> Gini(S) = 1 - Σ p(c)². La reducción compara el Gini del nodo con el promedio ponderado de sus hijos.</p>
+      <p><strong>Probabilidad de rama:</strong> p(v) = |S_v| / |S|.</p>
+      <p><strong>Suma-producto:</strong> I_ponderada = Σ p(v)·I(S_v). El diagrama muestra cada aporte p(v)·I(S_v) junto a su rama.</p>
+      <p class="note">Estas definiciones son estándar y no fueron extraídas de una diapositiva específica del material proporcionado.</p>
+    </section>
+
+    <section class="lab-index" id="laboratorios" aria-labelledby="labs-title">
+      <p class="eyebrow">RUTA DE APRENDIZAJE</p>
+      <h2 id="labs-title">Cinco laboratorios, un mismo recorrido</h2>
+      <div class="lab-index__grid">
+        <article class="lab-card">
+          <p class="eyebrow">01</p>
+          <h3>Árboles de decisión</h3>
+          <p>Compara Entropía y Gini, selecciona divisiones y sigue la predicción.</p>
+          <a class="ui-button" href="/">ABRIR</a>
+        </article>
+        <article class="lab-card">
+          <p class="eyebrow">02</p>
+          <h3>Decisión bajo incertidumbre</h3>
+          <p>Recorre Laplace, Wald, Hurwicz y Savage sobre una matriz de pagos.</p>
+          <a class="ui-button" href="/incertidumbre">ABRIR</a>
+        </article>
+        <article class="lab-card">
+          <p class="eyebrow">03</p>
+          <h3>Mochila 0/1</h3>
+          <p>Construye `z_k(d)` y vuelve desde la última celda hasta la solución óptima.</p>
+          <a class="ui-button" href="/mochila">ABRIR</a>
+        </article>
+        <article class="lab-card">
+          <p class="eyebrow">04</p>
+          <h3>Asignación de recursos</h3>
+          <p>Optimiza por etapas y estados y reconstruye la política de brigadas.</p>
+          <a class="ui-button" href="/asignacion">ABRIR</a>
+        </article>
+              <article class="lab-card">
+          <p class="eyebrow">05</p>
+          <h3>Reemplazo de máquinas</h3>
+          <p>Decide la duración óptima de cada máquina con DP y un grafo temporal de reemplazos.</p>
+          <a class="ui-button" href="/reemplazo">ABRIR</a>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/flip.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/problem_data.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/renderers/tree_renderer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

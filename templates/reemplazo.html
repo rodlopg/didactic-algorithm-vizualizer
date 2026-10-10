@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Reemplazo de máquinas con programación dinámica, grafo de etapas y estados.">
+  <title>Reemplazo de máquinas · Laboratorio didáctico</title>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/matrix.css') }}">
+</head>
+<body>
+  {% include "_nav.html" %}
+
+  <main class="layout-container page-grid">
+    <article class="intro-block">
+      <p class="eyebrow">LABORATORIO 5 · REEMPLAZO DE MÁQUINAS</p>
+      <h1>Decide cuándo conservar y cuándo reemplazar una máquina.</h1>
+      <p class="lead">Aquí seguimos exactamente la formulación del ejemplo docente: la etapa es el año, el estado es la edad de la máquina, y las acciones son <strong>K</strong> (conservar) o <strong>R</strong> (reemplazar). Al final del horizonte se ejecuta <strong>S</strong> (desechar).</p>
+    </article>
+
+    <section class="workspace-card" aria-labelledby="machine-title">
+      <header class="section-heading">
+        <div><p class="eyebrow">ALGORITMO ACTIVO</p><h2 id="machine-title">Programación dinámica de reemplazo</h2></div>
+        <p id="machine-status-line" class="status-line" role="status">Listo para construir el recorrido.</p>
+      </header>
+
+      <form id="machine-form" class="control-grid">
+        <fieldset class="field-group">
+          <legend>Horizonte</legend>
+          <label for="machine-horizon-input">Años de planificación</label>
+          <input id="machine-horizon-input" type="number" min="1" max="12" step="1" value="4">
+        </fieldset>
+        <fieldset class="field-group">
+          <legend>Edad inicial</legend>
+          <label for="machine-initial-age-input">Edad al inicio del año 1</label>
+          <input id="machine-initial-age-input" type="number" min="1" max="12" step="1" value="3">
+        </fieldset>
+        <fieldset class="field-group">
+          <legend>Edad límite</legend>
+          <label for="machine-max-age-input">Edad que obliga a reemplazar</label>
+          <input id="machine-max-age-input" type="number" min="2" max="12" step="1" value="6">
+        </fieldset>
+        <fieldset class="field-group">
+          <legend>Adquisición</legend>
+          <label for="machine-purchase-input">Costo de una máquina nueva</label>
+          <input id="machine-purchase-input" type="number" min="0" step="1" value="100000">
+        </fieldset>
+        <fieldset class="field-group field-group--wide">
+          <legend>Ingreso r(t)</legend>
+          <label for="machine-income-input">JSON para edades t = 0..edad máxima</label>
+          <textarea id="machine-income-input" rows="3" spellcheck="false">[20000,19000,18500,17200,15500,14000,12200]</textarea>
+        </fieldset>
+        <fieldset class="field-group field-group--wide">
+          <legend>Costo de operación c(t)</legend>
+          <label for="machine-operation-input">JSON para edades t = 0..edad máxima</label>
+          <textarea id="machine-operation-input" rows="3" spellcheck="false">[200,600,1200,1500,1700,1800,2200]</textarea>
+        </fieldset>
+        <fieldset class="field-group field-group--wide">
+          <legend>Valor de desecho s(t)</legend>
+          <label for="machine-residual-input">JSON para edades t = 0..edad máxima; usa null cuando no aplica</label>
+          <textarea id="machine-residual-input" rows="3" spellcheck="false">[null,80000,60000,50000,30000,10000,5000]</textarea>
+        </fieldset>
+        <aside class="sandbox-tip field-group field-group--wide">
+          <strong>Cómo se interpreta</strong>
+          <p>En cada año, <strong>K</strong> conserva la máquina un año más. <strong>R</strong> vende la actual, compra una nueva y hace que la nueva tenga edad 1 al comenzar el siguiente año. Al final del horizonte, <strong>S</strong> desecha la máquina y recupera su valor de desecho.</p>
+        </aside>
+        <button type="submit" class="ui-button ui-button--primary">CONSTRUIR PASO A PASO</button>
+      </form>
+
+      <section id="machine-problem-data" class="problem-data-host" aria-label="Datos del problema"></section>
+
+      <section class="playback" aria-label="Controles de ejecución">
+        <div class="playback__buttons">
+          <button id="machine-previous-button" class="ui-button" type="button">PASO ANTERIOR</button>
+          <button id="machine-next-button" class="ui-button ui-button--primary" type="button">PASO SIGUIENTE</button>
+          <button id="machine-play-button" class="ui-button" type="button">REPRODUCIR / AUTO-ANIMAR</button>
+          <button id="machine-pause-button" class="ui-button" type="button">PAUSAR</button>
+          <button id="machine-reset-button" class="ui-button" type="button">REINICIAR</button>
+        </div>
+        <label class="speed-control" for="machine-speed-input">Velocidad <output id="machine-speed-output">1.0×</output><input id="machine-speed-input" type="range" min="0.5" max="2.5" step="0.1" value="1"></label>
+      </section>
+
+      <div id="machine-sandbox-message" class="sandbox-message" role="alert" aria-live="polite" hidden></div>
+
+      <section class="learning-grid">
+        <article class="tree-panel" aria-labelledby="machine-panel-title">
+          <header class="panel-header"><div><p class="eyebrow">FOCO VISUAL</p><h3 id="machine-panel-title">Red de etapas, estados y decisiones</h3></div><p id="machine-step-counter" class="step-counter">Paso 0 / 0</p></header>
+          <div id="machine-canvas" class="machine-canvas" aria-live="polite"><p class="empty-state">Construye el problema y comienza con <strong>Paso siguiente</strong>.</p></div>
+        </article>
+        <aside class="inspector" aria-labelledby="machine-inspector-title">
+          <header class="panel-header"><p class="eyebrow">INSPECTOR CONTEXTUAL</p><h3 id="machine-inspector-title">¿Qué está ocurriendo?</h3></header>
+          <section class="inspector-block"><h4>Fase</h4><p id="machine-phase-value">Esperando una ejecución.</p></section>
+          <section class="inspector-block"><h4>Acción actual</h4><p id="machine-title-value">Todavía no hay un paso activo.</p></section>
+          <section class="inspector-block"><h4>Fórmula exacta</h4><pre id="machine-formula-value">—</pre></section>
+          <section class="inspector-block"><h4>¿Por qué?</h4><p id="machine-why-value">La explicación aparecerá aquí cuando avances.</p></section>
+          <section class="inspector-block"><h4>Variables actuales</h4><table class="variables-table"><thead><tr><th>Variable</th><th>Valor</th></tr></thead><tbody id="machine-variables-body"><tr><td colspan="2">—</td></tr></tbody></table></section>
+        </aside>
+      </section>
+    </section>
+
+    <section class="method-strip">
+      <p class="eyebrow">LECTURA GUIADA</p>
+      <h2>La misma red que aparece en el modelo docente</h2>
+      <ol>
+        <li><strong>Etapa:</strong> cada columna es un año de decisión.</li>
+        <li><strong>Estado:</strong> cada nodo indica la edad de la máquina al comenzar ese año.</li>
+        <li><strong>Acción:</strong> K sube la edad en uno; R reinicia la edad a 1; S conduce al nodo Final.</li>
+        <li><strong>Recurrencia:</strong> se calcula hacia atrás y se guardan las acciones que maximizan el ingreso neto.</li>
+      </ol>
+    </section>
+
+    <section class="formula-note">
+      <p class="eyebrow">TRANSPARENCIA MATEMÁTICA</p>
+      <h2>Modelo del ejemplo</h2>
+      <p><strong>Conservar:</strong> <code>r(t) − c(t) + fᵢ₊₁(t+1)</code>.</p>
+      <p><strong>Reemplazar:</strong> <code>r(0) + s(t) − c(0) − I + fᵢ₊₁(1)</code>.</p>
+      <p><strong>Terminal:</strong> <code>fₙ₊₁(t) = s(t)</code>.</p>
+      <p><strong>Resultado del ejemplo:</strong> <code>f₁(3) = 55,300</code>, con las políticas óptimas <code>RKKR</code> o <code>RRKK</code>.</p>
+      <p class="note">La etapa, el estado, las acciones K/R, la condición de reemplazo a edad 6 y el resultado óptimo corresponden a la presentación de Programación Dinámica III.</p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/flip.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/problem_data.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/renderers/machine_replacement_renderer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/machine_replacement_controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

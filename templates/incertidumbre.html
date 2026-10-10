@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Criterios de decisión bajo incertidumbre paso a paso.">
+  <title>Decisión bajo incertidumbre · Laboratorio didáctico</title>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/matrix.css') }}">
+</head>
+<body>
+  {% include "_nav.html" %}
+
+<main class="layout-container page-grid">
+    <article class="intro-block">
+      <p class="eyebrow">LABORATORIO 2 · DECISIÓN BAJO INCERTIDUMBRE</p>
+      <h1>Haz visible cómo cambia la decisión según el criterio.</h1>
+      <p class="lead">Partimos de una matriz de pagos. Después recorremos Laplace, Wald, Hurwicz y Savage sin ocultar ninguna operación.</p>
+    </article>
+
+    <section id="matriz" class="workspace-card" aria-labelledby="unc-title">
+      <header class="section-heading">
+        <div><p class="eyebrow">ALGORITMO ACTIVO</p><h2 id="unc-title">Matriz de decisión y criterios</h2></div>
+        <p id="unc-status-line" class="status-line" role="status">Listo para construir el recorrido.</p>
+      </header>
+
+      <form id="uncertainty-form" class="control-grid">
+        <fieldset class="field-group"><legend>Alternativas</legend><label for="alternatives-input">Nombres separados por coma</label><input id="alternatives-input" value="a1, a2, a3" spellcheck="false"></fieldset>
+        <fieldset class="field-group"><legend>Estados</legend><label for="states-input">Nombres separados por coma</label><input id="states-input" value="s1, s2" spellcheck="false"></fieldset>
+        <fieldset class="field-group"><legend>Criterio</legend><label for="unc-criterion-select">Regla de elección</label><select id="unc-criterion-select"><option value="todos">Todos los criterios</option><option value="laplace">Laplace</option><option value="wald">Wald / Maximin</option><option value="hurwicz">Hurwicz</option><option value="savage">Savage / Minimax Regret</option></select></fieldset>
+        <fieldset class="field-group"><legend>Parámetro α</legend><label for="unc-alpha-input">Peso del mejor caso <output id="unc-alpha-output">0.60</output></label><input id="unc-alpha-input" type="range" min="0" max="1" step="0.05" value="0.6"></fieldset>
+        <fieldset class="field-group field-group--wide"><legend>Pagos</legend><label for="payments-input">Una fila por alternativa y una columna por estado.</label><textarea id="payments-input" rows="6" spellcheck="false">[
+  [15000, 8000],
+  [14000, 17910],
+  [4000, 7910]
+]</textarea></fieldset>
+        <button id="unc-build-button" type="submit" class="ui-button ui-button--primary">CONSTRUIR PASO A PASO</button>
+      </form>
+
+      <section id="unc-problem-data" class="problem-data-host" aria-label="Datos del problema"></section>
+
+      <section class="playback" aria-label="Controles de ejecución">
+        <div class="playback__buttons">
+          <button id="unc-previous-button" class="ui-button" type="button">PASO ANTERIOR</button>
+          <button id="unc-next-button" class="ui-button ui-button--primary" type="button">PASO SIGUIENTE</button>
+          <button id="unc-play-button" class="ui-button" type="button">REPRODUCIR / AUTO-ANIMAR</button>
+          <button id="unc-pause-button" class="ui-button" type="button">PAUSAR</button>
+          <button id="unc-reset-button" class="ui-button" type="button">REINICIAR</button>
+        </div>
+        <label class="speed-control" for="unc-speed-input">Velocidad <output id="unc-speed-output">1.0×</output><input id="unc-speed-input" type="range" min="0.5" max="2.5" step="0.1" value="1"></label>
+      </section>
+
+      <div id="unc-sandbox-message" class="sandbox-message" role="alert" aria-live="polite" hidden></div>
+
+      <section class="learning-grid">
+        <article class="tree-panel decision-panel" aria-labelledby="decision-panel-title">
+          <header class="panel-header"><div><p class="eyebrow">FOCO VISUAL</p><h3 id="decision-panel-title">Estado actual de la matriz</h3></div><p id="unc-step-counter" class="step-counter">Paso 0 / 0</p></header>
+          <div id="decision-canvas" class="tree-canvas decision-canvas" aria-live="polite"><p class="empty-state">Construye la matriz y comienza con <strong>Paso siguiente</strong>.</p></div>
+        </article>
+        <aside class="inspector" aria-labelledby="unc-inspector-title">
+          <header class="panel-header"><p class="eyebrow">INSPECTOR CONTEXTUAL</p><h3 id="unc-inspector-title">¿Qué está ocurriendo?</h3></header>
+          <section class="inspector-block"><h4>Fase</h4><p id="unc-phase-value">Esperando una ejecución.</p></section>
+          <section class="inspector-block"><h4>Acción actual</h4><p id="unc-title-value">Todavía no hay un paso activo.</p></section>
+          <section class="inspector-block"><h4>Fórmula exacta</h4><pre id="unc-formula-value">—</pre></section>
+          <section class="inspector-block"><h4>¿Por qué?</h4><p id="unc-why-value">La explicación aparecerá aquí cuando avances.</p></section>
+          <section class="inspector-block"><h4>Variables actuales</h4><table class="variables-table"><thead><tr><th>Variable</th><th>Valor</th></tr></thead><tbody id="unc-variables-body"><tr><td colspan="2">—</td></tr></tbody></table></section>
+        </aside>
+      </section>
+    </section>
+
+    <section id="criterios" class="formula-note" aria-labelledby="criteria-title">
+      <p class="eyebrow">TRANSPARENCIA MATEMÁTICA</p>
+      <h2 id="criteria-title">Qué compara cada criterio</h2>
+      <p><strong>Laplace:</strong> asigna el mismo peso a los estados y elige el mayor promedio.</p>
+      <p><strong>Wald / Maximin:</strong> toma el mínimo de cada alternativa y luego el máximo entre esos mínimos.</p>
+      <p><strong>Hurwicz:</strong> combina mejor y peor caso con α: H(a) = α·max(a) + (1−α)·min(a).</p>
+      <p><strong>Savage / Minimax Regret:</strong> construye arrepentimientos por estado, toma el peor arrepentimiento de cada alternativa y elige el menor.</p>
+      <p class="note">La estructura de la matriz y estos criterios corresponden al material de decisión bajo incertidumbre proporcionado; el texto se reorganiza aquí para la visualización interactiva.</p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/flip.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/problem_data.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/renderers/uncertainty_renderer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/uncertainty_controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

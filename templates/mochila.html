@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Mochila 0/1 paso a paso con programación dinámica y backtracking.">
+  <title>Mochila 0/1 · Laboratorio didáctico</title>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/matrix.css') }}">
+</head>
+<body>
+  {% include "_nav.html" %}
+
+<main class="layout-container page-grid">
+    <article class="intro-block">
+      <p class="eyebrow">LABORATORIO 3 · MOCHILA 0/1</p>
+      <h1>Haz visible cómo se construye una solución óptima.</h1>
+      <p class="lead">Llena la tabla celda por celda y después retrocede desde la solución final para descubrir qué objetos fueron seleccionados.</p>
+    </article>
+
+    <section id="tabla" class="workspace-card" aria-labelledby="knap-title">
+      <header class="section-heading">
+        <div><p class="eyebrow">ALGORITMO ACTIVO</p><h2 id="knap-title">Programación dinámica + backtracking</h2></div>
+        <p id="knap-status-line" class="status-line" role="status">Listo para construir el recorrido.</p>
+      </header>
+
+      <form id="knapsack-form" class="control-grid">
+        <fieldset class="field-group">
+          <legend>Beneficios</legend>
+          <label for="benefits-input">Lista JSON</label>
+          <input id="benefits-input" value="[16, 19, 23, 28]" spellcheck="false">
+        </fieldset>
+        <fieldset class="field-group">
+          <legend>Pesos</legend>
+          <label for="weights-input">Lista JSON</label>
+          <input id="weights-input" value="[2, 3, 4, 5]" spellcheck="false">
+        </fieldset>
+        <fieldset class="field-group">
+          <legend>Capacidad</legend>
+          <label for="capacity-input">Capacidad B</label>
+          <input id="capacity-input" type="number" min="0" max="40" step="1" value="7">
+        </fieldset>
+        <aside class="sandbox-tip field-group">
+          <strong>Idea clave</strong>
+          <p>Cada objeto puede aparecer una sola vez: <code>xᵢ ∈ {0,1}</code>.</p>
+        </aside>
+        <button id="knap-build-button" type="submit" class="ui-button ui-button--primary">CONSTRUIR PASO A PASO</button>
+      </form>
+
+      <section id="knap-problem-data" class="problem-data-host" aria-label="Datos del problema"></section>
+
+      <section class="playback" aria-label="Controles de ejecución">
+        <div class="playback__buttons">
+          <button id="knap-previous-button" class="ui-button" type="button">PASO ANTERIOR</button>
+          <button id="knap-next-button" class="ui-button ui-button--primary" type="button">PASO SIGUIENTE</button>
+          <button id="knap-play-button" class="ui-button" type="button">REPRODUCIR / AUTO-ANIMAR</button>
+          <button id="knap-pause-button" class="ui-button" type="button">PAUSAR</button>
+          <button id="knap-reset-button" class="ui-button" type="button">REINICIAR</button>
+        </div>
+        <label class="speed-control" for="knap-speed-input">Velocidad <output id="knap-speed-output">1.0×</output>
+          <input id="knap-speed-input" type="range" min="0.5" max="2.5" step="0.1" value="1">
+        </label>
+      </section>
+
+      <div id="knap-sandbox-message" class="sandbox-message" role="alert" aria-live="polite" hidden></div>
+
+      <section class="learning-grid">
+        <article class="tree-panel" aria-labelledby="knap-panel-title">
+          <header class="panel-header">
+            <div><p class="eyebrow">FOCO VISUAL</p><h3 id="knap-panel-title">Tabla de programación dinámica</h3></div>
+            <p id="knap-step-counter" class="step-counter">Paso 0 / 0</p>
+          </header>
+          <div id="knapsack-canvas" class="knapsack-canvas" aria-live="polite">
+            <p class="empty-state">Construye la tabla y comienza con <strong>Paso siguiente</strong>.</p>
+          </div>
+        </article>
+
+        <aside class="inspector" aria-labelledby="knap-inspector-title">
+          <header class="panel-header"><p class="eyebrow">INSPECTOR CONTEXTUAL</p><h3 id="knap-inspector-title">¿Qué está ocurriendo?</h3></header>
+          <section class="inspector-block"><h4>Fase</h4><p id="knap-phase-value">Esperando una ejecución.</p></section>
+          <section class="inspector-block"><h4>Acción actual</h4><p id="knap-title-value">Todavía no hay un paso activo.</p></section>
+          <section class="inspector-block"><h4>Fórmula exacta</h4><pre id="knap-formula-value">—</pre></section>
+          <section class="inspector-block"><h4>¿Por qué?</h4><p id="knap-why-value">La explicación aparecerá aquí cuando avances.</p></section>
+          <section class="inspector-block"><h4>Variables actuales</h4><table class="variables-table"><thead><tr><th>Variable</th><th>Valor</th></tr></thead><tbody id="knap-variables-body"><tr><td colspan="2">—</td></tr></tbody></table></section>
+        </aside>
+      </section>
+    </section>
+
+    <section id="backtracking" class="method-strip" aria-labelledby="backtracking-title">
+      <p class="eyebrow">LECTURA GUIADA</p>
+      <h2 id="backtracking-title">De la última celda hacia atrás</h2>
+      <ol>
+        <li><strong>Construye:</strong> cada `z_k(d)` conserva la mejor solución encontrada para esa capacidad.</li>
+        <li><strong>Compara:</strong> cuando un objeto cabe, se contrasta excluirlo contra incluirlo.</li>
+        <li><strong>Reconstruye:</strong> desde `z_n(B)` seguimos las decisiones que explican el valor óptimo.</li>
+      </ol>
+    </section>
+
+    <section class="formula-note" aria-labelledby="knap-formula-title">
+      <p class="eyebrow">TRANSPARENCIA MATEMÁTICA</p>
+      <h2 id="knap-formula-title">Modelo de la mochila 0/1</h2>
+      <p><strong>Objetivo:</strong> Max Z = Σ gᵢxᵢ</p>
+      <p><strong>Restricción:</strong> Σ wᵢxᵢ ≤ B</p>
+      <p><strong>Decisión:</strong> xᵢ ∈ {0,1}</p>
+      <p><strong>Recurrencia:</strong> si el objeto cabe, `z_k(d) = max(z_{k-1}(d), g_k + z_{k-1}(d-w_k))`; si no cabe, `z_k(d)=z_{k-1}(d)`.</p>
+      <p class="note">El ejemplo numérico de esta pantalla corresponde al material de programación dinámica y mochila proporcionado.</p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/flip.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/problem_data.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/renderers/knapsack_renderer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/knapsack_controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

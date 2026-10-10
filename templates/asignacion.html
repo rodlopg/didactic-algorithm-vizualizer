@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Asignación dinámica de recursos paso a paso con etapas y estados.">
+  <title>Asignación de recursos · Laboratorio didáctico</title>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/matrix.css') }}">
+</head>
+<body>
+  {% include "_nav.html" %}
+
+<main class="layout-container page-grid">
+    <article class="intro-block">
+      <p class="eyebrow">LABORATORIO 4 · ASIGNACIÓN DE RECURSOS</p>
+      <h1>Observa cómo una política óptima emerge desde las etapas y los estados.</h1>
+      <p class="lead">Resolvemos primero los subproblemas del final y después reconstruimos cuántas brigadas conviene asignar a cada país. La matriz muestra los óptimos; el diagrama hace visibles todas las transiciones posibles y resalta la decisión del paso actual.</p>
+    </article>
+
+    <section class="workspace-card" aria-labelledby="resource-title">
+      <header class="section-heading">
+        <div><p class="eyebrow">ALGORITMO ACTIVO</p><h2 id="resource-title">Programación dinámica de asignación</h2></div>
+        <p id="res-status-line" class="status-line" role="status">Listo para construir el recorrido.</p>
+      </header>
+
+      <form id="resource-form" class="control-grid">
+        <fieldset class="field-group">
+          <legend>Brigadas totales</legend>
+          <label for="resource-total-input">Cantidad B</label>
+          <input id="resource-total-input" type="number" min="0" max="20" step="1" value="5">
+        </fieldset>
+        <fieldset class="field-group">
+          <legend>Etapas</legend>
+          <label for="resource-stages-input">Nombres separados por coma</label>
+          <input id="resource-stages-input" value="País 1, País 2, País 3" spellcheck="false">
+        </fieldset>
+        <fieldset class="field-group field-group--wide">
+          <legend>Rendimientos</legend>
+          <label for="resource-table-input">Una fila por etapa; columnas de 0 a B</label>
+          <textarea id="resource-table-input" rows="5" spellcheck="false">[[0,45,70,90,105,120],[0,20,45,75,110,150],[0,50,70,80,100,130]]</textarea>
+        </fieldset>
+        <aside class="sandbox-tip field-group field-group--wide">
+          <strong>Idea clave</strong>
+          <p>El estado <code>s</code> representa las brigadas disponibles. La decisión <code>x</code> indica cuántas se asignan a la etapa actual; las restantes pasan a las siguientes.</p>
+        </aside>
+        <button id="resource-build-button" type="submit" class="ui-button ui-button--primary">CONSTRUIR PASO A PASO</button>
+      </form>
+
+      <section id="resource-problem-data" class="problem-data-host" aria-label="Datos del problema"></section>
+
+      <section class="playback" aria-label="Controles de ejecución">
+        <div class="playback__buttons">
+          <button id="res-previous-button" class="ui-button" type="button">PASO ANTERIOR</button>
+          <button id="res-next-button" class="ui-button ui-button--primary" type="button">PASO SIGUIENTE</button>
+          <button id="res-play-button" class="ui-button" type="button">REPRODUCIR / AUTO-ANIMAR</button>
+          <button id="res-pause-button" class="ui-button" type="button">PAUSAR</button>
+          <button id="res-reset-button" class="ui-button" type="button">REINICIAR</button>
+        </div>
+        <label class="speed-control" for="res-speed-input">Velocidad <output id="res-speed-output">1.0×</output>
+          <input id="res-speed-input" type="range" min="0.5" max="2.5" step="0.1" value="1">
+        </label>
+      </section>
+
+      <div id="res-sandbox-message" class="sandbox-message" role="alert" aria-live="polite" hidden></div>
+
+      <section class="learning-grid">
+        <article class="tree-panel" aria-labelledby="res-panel-title">
+          <header class="panel-header"><div><p class="eyebrow">FOCO VISUAL</p><h3 id="res-panel-title">Matriz + mapa de posibilidades</h3></div><p id="res-step-counter" class="step-counter">Paso 0 / 0</p></header>
+          <div id="resource-canvas" class="resource-canvas" aria-live="polite"><p class="empty-state">Construye la matriz y comienza con <strong>Paso siguiente</strong>.</p></div>
+        </article>
+        <aside class="inspector" aria-labelledby="res-inspector-title">
+          <header class="panel-header"><p class="eyebrow">INSPECTOR CONTEXTUAL</p><h3 id="res-inspector-title">¿Qué está ocurriendo?</h3></header>
+          <section class="inspector-block"><h4>Fase</h4><p id="res-phase-value">Esperando una ejecución.</p></section>
+          <section class="inspector-block"><h4>Acción actual</h4><p id="res-title-value">Todavía no hay un paso activo.</p></section>
+          <section class="inspector-block"><h4>Fórmula exacta</h4><pre id="res-formula-value">—</pre></section>
+          <section class="inspector-block"><h4>¿Por qué?</h4><p id="res-why-value">La explicación aparecerá aquí cuando avances.</p></section>
+          <section class="inspector-block"><h4>Variables actuales</h4><table class="variables-table"><thead><tr><th>Variable</th><th>Valor</th></tr></thead><tbody id="res-variables-body"><tr><td colspan="2">—</td></tr></tbody></table></section>
+        </aside>
+      </section>
+    </section>
+
+    <section class="method-strip" aria-labelledby="resource-method-title">
+      <p class="eyebrow">LECTURA GUIADA</p>
+      <h2 id="resource-method-title">De los últimos estados al primero</h2>
+      <ol>
+        <li><strong>Etapas:</strong> cada país representa una etapa del problema.</li>
+        <li><strong>Estados:</strong> el número de brigadas disponibles resume lo que queda por decidir.</li>
+        <li><strong>Principio de optimalidad:</strong> una solución óptima usa subsoluciones óptimas y permite reutilizar los resultados.</li>
+        <li><strong>Política:</strong> al final reconstruimos las decisiones <code>x₁, x₂, …</code> desde el estado inicial.</li>
+      </ol>
+    </section>
+
+    <section class="formula-note" aria-labelledby="resource-formula-title">
+      <p class="eyebrow">TRANSPARENCIA MATEMÁTICA</p>
+      <h2 id="resource-formula-title">Modelo de asignación</h2>
+      <p><strong>Estado:</strong> <code>s</code> = brigadas disponibles.</p>
+      <p><strong>Decisión:</strong> <code>xᵢ</code> = brigadas asignadas a la etapa <code>i</code>.</p>
+      <p><strong>Rendimiento:</strong> <code>pᵢ(xᵢ)</code> = rendimiento obtenido al asignar <code>xᵢ</code>.</p>
+      <p><strong>Recurrencia del ejemplo:</strong> <code>fᵢ(s) = max₀≤x≤s [pᵢ(x) + fᵢ₊₁(s−x)]</code>.</p>
+      <p class="note">La estructura de etapas, estados, decisiones y política corresponde al material de programación dinámica de asignación de recursos proporcionado.</p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/flip.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/problem_data.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/renderers/resource_graph_renderer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/renderers/resource_renderer.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/resource_controller.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+</body>
+</html>

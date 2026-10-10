@@ -1,0 +1,52 @@
+<header class="sys-header layout-container">
+  <a class="brand" href="/" aria-label="Volver al inicio">
+    <span class="brand__mark" aria-hidden="true">Λ</span>
+    <span>LABORATORIO / ALGORITMOS</span>
+  </a>
+  <section class="header-actions" aria-label="Controles globales">
+    <button id="theme-quick-toggle" class="ui-button ui-button--quiet" type="button" aria-label="Cambiar entre modo claro y oscuro">MODO</button>
+    <button id="nav-trigger" class="ui-button ui-button--primary" aria-expanded="false" aria-controls="sys-nav-drawer">MENÚ</button>
+  </section>
+</header>
+
+<nav id="sys-nav-drawer" class="sys-drawer" aria-hidden="true" aria-label="Navegación principal">
+  <header class="sys-drawer__header">
+    <div>
+      <p class="eyebrow">NAVEGACIÓN</p>
+      <strong>LABORATORIOS DIDÁCTICOS</strong>
+    </div>
+    <button id="nav-close" class="ui-button" type="button" aria-label="Cerrar navegación">CERRAR</button>
+  </header>
+
+  <section class="menu-section" aria-labelledby="menu-labs-title">
+    <h2 id="menu-labs-title">Algoritmos</h2>
+    <ul class="sys-drawer__list">
+      <li><a href="/#arboles" class="sys-drawer__link {% if request.path == '/' %}is-current{% endif %}" {% if request.path == '/' %}aria-current="page"{% endif %}><span class="menu-number">01</span><span><strong>ÁRBOLES DE DECISIÓN</strong><small>Entropía, Gini, probabilidades y selección de ramas.</small></span></a></li>
+      <li><a href="/incertidumbre" class="sys-drawer__link {% if request.path == '/incertidumbre' %}is-current{% endif %}" {% if request.path == '/incertidumbre' %}aria-current="page"{% endif %}><span class="menu-number">02</span><span><strong>DECISIÓN BAJO INCERTIDUMBRE</strong><small>Laplace, Wald, Hurwicz y Savage sobre una matriz de pagos.</small></span></a></li>
+      <li><a href="/mochila" class="sys-drawer__link {% if request.path == '/mochila' %}is-current{% endif %}" {% if request.path == '/mochila' %}aria-current="page"{% endif %}><span class="menu-number">03</span><span><strong>MOCHILA 0/1</strong><small>Tabla dinámica por columnas y reconstrucción de la solución.</small></span></a></li>
+      <li><a href="/asignacion" class="sys-drawer__link {% if request.path == '/asignacion' %}is-current{% endif %}" {% if request.path == '/asignacion' %}aria-current="page"{% endif %}><span class="menu-number">04</span><span><strong>ASIGNACIÓN DE RECURSOS</strong><small>Etapas, estados, transiciones y política óptima.</small></span></a></li>
+      <li><a href="/reemplazo" class="sys-drawer__link {% if request.path == '/reemplazo' %}is-current{% endif %}" {% if request.path == '/reemplazo' %}aria-current="page"{% endif %}><span class="menu-number">05</span><span><strong>REEMPLAZO DE MÁQUINAS</strong><small>Red temporal de edades, K/R/S y solución hacia atrás.</small></span></a></li>
+    </ul>
+  </section>
+
+  <section class="menu-section menu-section--appearance" aria-labelledby="appearance-title">
+    <h2 id="appearance-title">Apariencia</h2>
+    <fieldset class="appearance-controls">
+      <legend>Color de la interfaz</legend>
+      <label for="theme-mode">Tema</label>
+      <select id="theme-mode">
+        <option value="system">Sistema</option>
+        <option value="light">Claro</option>
+        <option value="dark">Oscuro</option>
+      </select>
+      <label for="accent-mode">Acento</label>
+      <select id="accent-mode">
+        <option value="red">Rojo</option>
+        <option value="cobalt">Cobalto</option>
+        <option value="orange">Naranja</option>
+      </select>
+      <button id="appearance-reset" class="ui-button" type="button">RESTABLECER</button>
+    </fieldset>
+  </section>
+</nav>
+<div id="sys-overlay" class="sys-overlay" aria-hidden="true"></div>
