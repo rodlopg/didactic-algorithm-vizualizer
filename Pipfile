@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[requires]
+python_version = "3.11"
+
+[packages]
+flask = ">=3.1,<4"
+gunicorn = ">=23,<24"
+
+[dev-packages]
+pytest = ">=8,<9"
+
+[scripts]
+start = "python app.py"
+test = "python -m pytest -q"

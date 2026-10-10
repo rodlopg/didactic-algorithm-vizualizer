@@ -1,0 +1,27 @@
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+instance/
+.webassets-cache/
+.env
+.env.*
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.tmp
+*.temp
+
+# Artefactos temporales de desarrollo
+repl_extract/
+*.zip
