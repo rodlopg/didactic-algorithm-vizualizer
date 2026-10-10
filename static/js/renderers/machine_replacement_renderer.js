@@ -174,7 +174,7 @@ window.MachineReplacementRenderer = class MachineReplacementRenderer {
           <span><i class="machine-mark machine-mark--active"></i>Paso actual</span>
         </div>
 
-        <div class="machine-diagram__scroll">
+        <div class="machine-diagram__scroll diagram-viewport__scroll">
           <svg class="machine-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Red de reemplazo de máquinas con años, edades, acciones K R y S">
             <defs>
               <marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">

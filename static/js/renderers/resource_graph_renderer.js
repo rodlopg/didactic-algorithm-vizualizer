@@ -88,7 +88,7 @@ window.ResourceGraphRenderer = class ResourceGraphRenderer {
           <span><i class="legend-node legend-node--active"></i> Estado activo</span>
         </div>
 
-        <div class="resource-graph__scroll">
+        <div class="resource-graph__scroll diagram-viewport__scroll">
           <svg class="resource-graph__svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img"
             aria-label="Grafo de estados y decisiones de asignación de brigadas">
             <defs>

@@ -4,12 +4,13 @@ Laboratorio educativo en Flask para hacer visibles, paso a paso, algoritmos de t
 
 ## Estado del proyecto
 
-**Integración final completada.** El laboratorio reúne cuatro módulos independientes que comparten el mismo contrato de pasos y la misma experiencia de navegación.
+**Integración final completada.** El laboratorio reúne cinco módulos que comparten el mismo contrato de pasos y la misma experiencia de navegación.
 
 1. **Árboles de decisión** — Entropía + Ganancia de Información, Gini + Reducción de impureza, crecimiento recursivo y recorrido de una observación.
 2. **Decisión bajo incertidumbre** — Laplace, Wald/Maximin, Hurwicz y Savage/Minimax Regret.
 3. **Mochila 0/1** — programación dinámica celda por celda y backtracking.
 4. **Asignación de recursos** — programación dinámica por etapas y estados y reconstrucción de la política.
+5. **Reemplazo de máquinas** — programación dinámica por edad, año y acciones K/R/S.
 
 ## Arquitectura
 
@@ -31,18 +32,22 @@ didactic-algorithm-vizualizer/
 │       │   ├── tree_renderer.js
 │       │   ├── uncertainty_renderer.js
 │       │   ├── knapsack_renderer.js
-│       │   └── resource_renderer.js
+│       │   ├── resource_renderer.js
+│       │   └── machine_replacement_renderer.js
 │       ├── controller.js            # Árboles
 │       ├── uncertainty_controller.js
 │       ├── knapsack_controller.js
 │       ├── resource_controller.js
+│       ├── machine_replacement_controller.js
+│       ├── diagram_viewport.js      # Autoajuste, zoom y escala por eje
 │       └── flip.js                  # Navegación FLIP
 │
 ├── templates/
 │   ├── index.html                   # Laboratorio 1 / portada
 │   ├── incertidumbre.html            # Laboratorio 2
 │   ├── mochila.html                 # Laboratorio 3
-│   └── asignacion.html              # Laboratorio 4
+│   ├── asignacion.html              # Laboratorio 4
+│   └── reemplazo.html               # Laboratorio 5
 │
 ├── tests/
 │   ├── test_decision_trees.py
@@ -72,7 +77,7 @@ didactic-algorithm-vizualizer/
 
 **Controles:** `static/js/<algoritmo>_controller.js`.
 
-**Viewport:** `templates/<algoritmo>.html`.
+**Viewport:** `templates/<algoritmo>.html`. Los diagramas SVG comparten `static/js/diagram_viewport.js`: cada actualización se encaja en el cuadro y los controles permiten zoom y escalas horizontal/vertical independientes.
 
 **Estilos compartidos:** `static/css/matrix.css`.
 
@@ -142,6 +147,7 @@ No se proporcionó una presentación específica de árboles de decisión entre 
 - `/incertidumbre` — Decisión bajo incertidumbre.
 - `/mochila` — Mochila 0/1.
 - `/asignacion` — Asignación de recursos.
+- `/reemplazo` — Reemplazo de máquinas.
 
 ### APIs
 
@@ -154,6 +160,8 @@ No se proporcionó una presentación específica de árboles de decisión entre 
 - `POST /api/knapsack/steps`
 - `GET /api/resource-allocation/default`
 - `POST /api/resource-allocation/steps`
+- `GET /api/machine-replacement/default`
+- `POST /api/machine-replacement/steps`
 
 ## Instalación local
 

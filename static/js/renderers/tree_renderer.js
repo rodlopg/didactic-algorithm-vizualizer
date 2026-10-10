@@ -17,15 +17,40 @@ window.TreeRenderer = class TreeRenderer {
 
     const positions = new Map();
     let leafCursor = 0;
-    const depthGap = 168;
-    const leafGap = 238;
-    const nodeW = 198;
-    const nodeH = 84;
+    const leafGap = 520;
+    const nodeW = 236;
+    const edgeLabelW = 236;
+    const edgeLabelH = 62;
+
+    const wrapLabel = (value, limit = 24) => {
+      const words = String(value ?? '—').split(/\s+/);
+      const lines = [];
+      let line = '';
+      words.forEach((word) => {
+        const next = line ? `${line} ${word}` : word;
+        if (next.length > limit && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = next;
+        }
+      });
+      if (line) lines.push(line);
+      return lines.length ? lines : ['—'];
+    };
+
+    const labelsByNode = new Map(state.nodos.map((node) => [
+      node.id,
+      wrapLabel(node.es_hoja ? `Clase: ${node.prediccion || node.mayoria}` : `Pregunta: ${node.caracteristica}`),
+    ]));
+    const maxLabelLines = Math.max(1, ...Array.from(labelsByNode.values(), (lines) => lines.length));
+    const nodeH = Math.max(94, 78 + maxLabelLines * 16);
+    const depthGap = Math.max(250, nodeH + edgeLabelH + 22);
 
     const place = (nodeId, depth) => {
       const edges = children.get(nodeId) || [];
       if (!edges.length) {
-        const x = leafCursor * leafGap + 150;
+        const x = leafCursor * leafGap + 160;
         leafCursor += 1;
         positions.set(nodeId, {x, y: 75 + depth * depthGap});
         return x;
@@ -40,8 +65,8 @@ window.TreeRenderer = class TreeRenderer {
     place(root.id, root.profundidad || 0);
 
     const maxDepth = Math.max(...state.nodos.map((node) => node.profundidad || 0), 0);
-    const width = Math.max(1040, (leafCursor + 1) * leafGap);
-    const height = 150 + (maxDepth + 1) * depthGap;
+    const width = Math.max(560, Math.max(1, leafCursor - 1) * leafGap + nodeW + 120);
+    const height = 180 + maxDepth * depthGap + nodeH;
     const pathNodes = new Set(state.camino || []);
 
     const fmt = (value) => {
@@ -57,14 +82,12 @@ window.TreeRenderer = class TreeRenderer {
       const midX = (a.x + b.x) / 2;
       const active = state.nodo_activo === edge.origen && state.active_edge_value === edge.etiqueta;
       const pathEdge = pathNodes.has(edge.origen) && pathNodes.has(edge.destino);
-      const labelWidth = 232;
-      const labelHeight = 62;
       const klass = ['tree-edge-group', pathEdge ? 'is-path' : '', active ? 'is-active' : ''].filter(Boolean).join(' ');
       return `
         <g class="${klass}">
           <path class="tree-edge" d="M ${a.x} ${a.y + nodeH / 2} V ${midY} H ${b.x} V ${b.y - nodeH / 2}"></path>
           <g class="tree-edge-label-box" transform="translate(${midX}, ${midY})">
-            <rect x="${-labelWidth / 2}" y="${-labelHeight / 2}" width="${labelWidth}" height="${labelHeight}"></rect>
+            <rect x="${-edgeLabelW / 2}" y="${-edgeLabelH / 2}" width="${edgeLabelW}" height="${edgeLabelH}"></rect>
             <text class="tree-edge-label" x="0" y="-21" text-anchor="middle">${this.escape(edge.etiqueta)}</text>
             <text class="tree-edge-prob" x="0" y="0" text-anchor="middle">p = ${edge.muestras_hijo}/${edge.muestras_padre} = ${fmt(edge.probabilidad)}</text>
             <text class="tree-edge-contrib" x="0" y="21" text-anchor="middle">p·I = ${fmt(edge.aporte_ponderado)}</text>
@@ -80,16 +103,20 @@ window.TreeRenderer = class TreeRenderer {
         node.id === state.nodo_activo ? 'is-active' : '',
         pathNodes.has(node.id) ? 'is-path' : '',
       ].filter(Boolean).join(' ');
-      const label = node.es_hoja ? `Clase: ${node.prediccion || node.mayoria}` : `Pregunta: ${node.caracteristica}`;
+      const labelLines = labelsByNode.get(node.id) || ['—'];
       const sumValue = node.suma_producto?.valor;
       const sumFormula = node.suma_producto?.formula || '';
       const sumLine = Number.isFinite(Number(sumValue)) ? `Σ p·I = ${fmt(sumValue)}` : '';
+      const labelStartY = labelLines.length === 1 ? 28 : 20;
+      const labelSvg = labelLines.map((line, index) => `<tspan x="${nodeW / 2}" y="${labelStartY + index * 16}">${this.escape(line)}</tspan>`).join('');
+      const metaY = 21 + labelLines.length * 16 + 7;
+      const sumY = metaY + 10;
       return `
         <g class="${classes}" transform="translate(${p.x - nodeW / 2}, ${p.y - nodeH / 2})">
           <rect class="tree-node-rect" width="${nodeW}" height="${nodeH}"></rect>
-          <text class="tree-node-text" x="${nodeW / 2}" y="24">${this.escape(label)}</text>
-          <text class="tree-node-meta" x="${nodeW / 2}" y="45">${node.muestras} ejemplo${node.muestras === 1 ? '' : 's'}</text>
-          ${sumLine ? `<g class="tree-node-sum-box"><rect x="12" y="53" width="${nodeW - 24}" height="22"></rect><text class="tree-node-sum" x="${nodeW / 2}" y="68">${this.escape(sumLine)}</text></g>` : ''}
+          <text class="tree-node-text" text-anchor="middle">${labelSvg}</text>
+          <text class="tree-node-meta" x="${nodeW / 2}" y="${metaY}">${node.muestras} ejemplo${node.muestras === 1 ? '' : 's'}</text>
+          ${sumLine ? `<g class="tree-node-sum-box"><rect x="12" y="${sumY}" width="${nodeW - 24}" height="22"></rect><text class="tree-node-sum" x="${nodeW / 2}" y="${sumY + 15}">${this.escape(sumLine)}</text></g>` : ''}
           ${sumFormula ? `<title>${this.escape(sumFormula)}</title>` : ''}
         </g>`;
     }).join('');
@@ -102,7 +129,7 @@ window.TreeRenderer = class TreeRenderer {
         <span><strong>p·I</strong> aporte ponderado</span>
         <span><strong>Σ p·I</strong> suma-producto del nodo</span>
       </div>
-      <div class="tree-diagram-scroll">
+      <div class="tree-diagram-scroll diagram-viewport__scroll">
         <svg class="tree-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Árbol de decisión con probabilidades y suma-producto">
           ${edgeSvg}
           ${nodeSvg}

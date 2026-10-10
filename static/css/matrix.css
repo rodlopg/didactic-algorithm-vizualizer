@@ -582,3 +582,87 @@ html[data-theme="dark"] .knapsack-matrix tbody th { background: var(--surface-so
 html[data-theme="dark"] .knapsack-cell.is-calculated { background: var(--surface-soft); }
 html[data-theme="dark"] .knapsack-cell.is-exclusion { background: var(--surface-info); }
 html[data-theme="dark"] .knapsack-cell.is-inclusion { background: #3a3318; }
+
+/* =========================================================
+   VISTA COMPARTIDA DE DIAGRAMAS · AUTOAJUSTE + ESCALAS
+   ========================================================= */
+.diagram-viewport-controls {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--color-architecture);
+  border-bottom: 0;
+  background: var(--surface-soft);
+}
+.diagram-viewport-controls__top,
+.diagram-viewport-controls__zoom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.diagram-viewport-controls__top { justify-content: space-between; }
+.diagram-viewport-controls__title { font-size: .92rem; }
+.diagram-viewport-controls .ui-button {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 12px;
+  font-size: .82rem;
+  text-transform: none;
+}
+.diagram-viewport-controls .ui-button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.diagram-zoom-value,
+.diagram-scale-control output {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  text-align: center;
+}
+.diagram-viewport-controls__axes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.diagram-scale-control { display: grid; gap: 3px; margin: 0; min-width: 0; }
+.diagram-scale-control > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.diagram-scale-control input[type="range"] { width: 100%; min-height: 32px; padding: 0; accent-color: var(--color-catalyst); cursor: ew-resize; }
+.diagram-viewport-controls__hint { margin: 0; max-width: none; color: var(--color-muted); font-size: .8rem; line-height: 1.35; }
+.diagram-viewport__scroll {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: 680px;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.diagram-viewport__scroll > svg.tree-svg,
+.diagram-viewport__scroll > svg.resource-graph__svg,
+.diagram-viewport__scroll > svg.machine-svg {
+  display: block;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 auto;
+}
+.tree-diagram-scroll.diagram-viewport__scroll,
+.resource-graph__scroll.diagram-viewport__scroll,
+.machine-diagram__scroll.diagram-viewport__scroll { border-top: 2px solid var(--color-architecture); }
+html[data-theme="dark"] .diagram-viewport-controls { background: var(--surface-soft); }
+
+/* El espaciado del árbol se calcula según la cantidad de hojas y las etiquetas. */
+.tree-node-rect { vector-effect: non-scaling-stroke; }
+.tree-edge-label-box rect { vector-effect: non-scaling-stroke; }
+.tree-node-sum-box rect { fill: var(--color-void); stroke: var(--line-soft); }
+.tree-node-sum { fill: var(--color-architecture); font-weight: 900; text-anchor: middle; }
+.tree-node-meta { fill: var(--color-muted); }
+.tree-edge-label, .tree-edge-prob, .tree-edge-contrib { fill: var(--color-architecture); }
+
+@media (max-width: 650px) {
+  .diagram-viewport-controls { padding: 10px; }
+  .diagram-viewport-controls__top { align-items: flex-start; flex-direction: column; }
+  .diagram-viewport-controls__zoom { width: 100%; }
+  .diagram-viewport-controls__axes { grid-template-columns: 1fr; }
+  .diagram-viewport-controls .ui-button { flex: 1 1 auto; }
+}
