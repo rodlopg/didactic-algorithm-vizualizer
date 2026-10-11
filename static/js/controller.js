@@ -1,5 +1,6 @@
 (() => {
   const form = document.getElementById('tree-form');
+  const treeInput = document.getElementById('tree-json-input');
   const renderer = new window.TreeRenderer(document.getElementById('tree-canvas'));
   const previousButton = document.getElementById('previous-button');
   const nextButton = document.getElementById('next-button');
@@ -17,14 +18,69 @@
   const whyValue = document.getElementById('why-value');
   const variablesBody = document.getElementById('variables-body');
   const problemPreview = document.getElementById('tree-problem-data');
+  const basicButton = document.getElementById('basic-example-button');
+  const multilevelButton = document.getElementById('multilevel-example-button');
+
+  const MULTILEVEL_TREE = {
+    type: 'decision',
+    label: 'Elegir presupuesto de la primera temporada',
+    options: [
+      {
+        label: 'Bajo presupuesto',
+        next: {
+          type: 'chance', label: 'Resultado de la primera temporada · bajo',
+          events: [
+            { label: 'Éxito', probability: 0.6, payoff: 5, next: {
+              type: 'decision', label: 'Presupuesto de la segunda temporada · tras éxito bajo',
+              options: [
+                { label: 'Bajo presupuesto', next: { type: 'chance', label: 'Resultado de temporada 2 · bajo', events: [
+                  { label: 'Éxito', probability: 0.65, payoff: 6 },
+                  { label: 'Fracaso', probability: 0.35, payoff: -1.4 },
+                ] } },
+                { label: 'Alto presupuesto', next: { type: 'chance', label: 'Resultado de temporada 2 · alto', events: [
+                  { label: 'Éxito', probability: 0.9, payoff: 5.5 },
+                  { label: 'Fracaso', probability: 0.1, payoff: -2.2 },
+                ] } },
+              ],
+            } },
+            // El pago del fracaso (-1) se suma al pago terminal de cancelar (-0.1).
+            { label: 'Fracaso', probability: 0.4, payoff: -1, next: { type: 'terminal', label: 'Cancelar la serie', payoff: -0.1 } },
+          ],
+        },
+      },
+      {
+        label: 'Alto presupuesto',
+        next: {
+          type: 'chance', label: 'Resultado de la primera temporada · alto',
+          events: [
+            { label: 'Éxito', probability: 0.8, payoff: 4, next: {
+              type: 'decision', label: 'Presupuesto de la segunda temporada · tras éxito alto',
+              options: [
+                { label: 'Bajo presupuesto', next: { type: 'chance', label: 'Resultado de temporada 2 · bajo', events: [
+                  { label: 'Éxito', probability: 0.55, payoff: 7 },
+                  { label: 'Fracaso', probability: 0.45, payoff: -1.2 },
+                ] } },
+                { label: 'Alto presupuesto', next: { type: 'chance', label: 'Resultado de temporada 2 · alto', events: [
+                  { label: 'Éxito', probability: 0.95, payoff: 4.5 },
+                  { label: 'Fracaso', probability: 0.05, payoff: -2.5 },
+                ] } },
+              ],
+            } },
+            // El pago del fracaso (-2) se suma al pago terminal de cancelar (-0.3).
+            { label: 'Fracaso', probability: 0.2, payoff: -2, next: { type: 'terminal', label: 'Cancelar la serie', payoff: -0.3 } },
+          ],
+        },
+      },
+    ],
+  };
 
   let steps = [];
   let currentIndex = -1;
   let timer = null;
+  const originalTreeText = treeInput.value;
 
   function setPlaying(playing) {
-    if (playing && timer) return;
-    if (!playing && timer) {
+    if (!playing && timer !== null) {
       clearTimeout(timer);
       timer = null;
     }
@@ -33,23 +89,17 @@
 
   function updateProblemPreview() {
     try {
-      const dataset = JSON.parse(document.getElementById('dataset-input').value);
-      window.ProblemData.tree(
-        problemPreview,
-        dataset,
-        document.getElementById('target-input').value.trim() || 'Jugar',
-        document.getElementById('criterion-select').value,
-        Number(document.getElementById('depth-input').value),
-      );
+      const tree = JSON.parse(treeInput.value);
+      window.ProblemData.decisionTree(problemPreview, tree);
     } catch (_error) {
-      problemPreview.innerHTML = '<section class="problem-data-card"><p class="problem-data__empty">Escribe un JSON válido para visualizar los datos del problema aquí.</p></section>';
+      problemPreview.innerHTML = '<section class="problem-data-card"><p class="problem-data__empty">No podemos preparar la ficha hasta que el JSON sea válido. El árbol anterior no se modifica.</p></section>';
     }
   }
 
   function renderVariables(variables) {
     const rows = Object.entries(variables || {}).map(([key, value]) => {
       const display = typeof value === 'object' ? JSON.stringify(value, null, 0) : String(value);
-      return `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(display)}</td></tr>`;
+      return `<tr><td>${escapeHtml(key.replaceAll('_', ' '))}</td><td>${escapeHtml(display)}</td></tr>`;
     }).join('');
     variablesBody.innerHTML = rows || '<tr><td colspan="2">—</td></tr>';
   }
@@ -75,28 +125,30 @@
     currentIndex = -1;
     if (steps.length) showStep(0);
     else {
+      renderer.render(null);
       stepCounter.textContent = 'Paso 0 / 0';
       phaseValue.textContent = 'Esperando una ejecución.';
       titleValue.textContent = 'Todavía no hay un paso activo.';
       formulaValue.textContent = '—';
       whyValue.textContent = 'La explicación aparecerá aquí cuando avances.';
       variablesBody.innerHTML = '<tr><td colspan="2">—</td></tr>';
+      previousButton.disabled = true;
+      nextButton.disabled = true;
     }
   }
 
   function play() {
     if (!steps.length) return;
+    setPlaying(false);
     if (currentIndex >= steps.length - 1) currentIndex = -1;
-    setPlaying(true);
+    playButton.setAttribute('aria-pressed', 'true');
     const tick = () => {
-      if (!timer) return;
       if (currentIndex >= steps.length - 1) {
         setPlaying(false);
         return;
       }
       showStep(currentIndex + 1);
-      const seconds = 1.8 / Number(speedInput.value);
-      timer = window.setTimeout(tick, seconds * 1000);
+      timer = window.setTimeout(tick, 1800 / Number(speedInput.value));
     };
     timer = window.setTimeout(tick, 0);
   }
@@ -105,51 +157,56 @@
     event.preventDefault();
     setPlaying(false);
     sandboxMessage.hidden = true;
-    statusLine.textContent = 'Construyendo el recorrido didáctico…';
+    statusLine.textContent = 'Validando probabilidades, pagos y estructura del árbol…';
     try {
-      const dataset = JSON.parse(document.getElementById('dataset-input').value);
+      const tree = JSON.parse(treeInput.value);
       const response = await fetch('/api/decision-tree/steps', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          dataset,
-          target: document.getElementById('target-input').value.trim() || 'Jugar',
-          criterion: document.getElementById('criterion-select').value,
-          max_depth: Number(document.getElementById('depth-input').value),
-          sample_index: Number(document.getElementById('sample-input').value),
-        }),
+        body: JSON.stringify({tree}),
       });
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.mensaje || 'No se pudo construir el árbol.');
       steps = payload.pasos || [];
       updateProblemPreview();
-      statusLine.textContent = `Listo: ${steps.length} pasos disponibles.`;
+      statusLine.textContent = `Árbol válido: ${steps.length} pasos disponibles.`;
       resetPlayback();
     } catch (error) {
       steps = [];
       resetPlayback();
       sandboxMessage.hidden = false;
       sandboxMessage.textContent = error instanceof SyntaxError
-        ? 'Los datos no están escritos como JSON válido. Corrige la estructura y vuelve a probar; el árbol seguirá intacto.'
-        : (error.message || 'No pudimos procesar los datos. Prueba con unas pocas filas sencillas.');
-      statusLine.textContent = 'Necesitamos ajustar los datos antes de continuar.';
+        ? 'El contenido no es JSON válido. Revisa comas, llaves y comillas; usa uno de los ejemplos para recuperar una estructura válida.'
+        : (error.message || 'No pudimos procesar el árbol. Revisa que cada nodo de azar sume probabilidades de 1.');
+      statusLine.textContent = 'Corrige los datos para poder resolver el árbol.';
     }
+  }
+
+  function loadTree(treeText) {
+    setPlaying(false);
+    treeInput.value = treeText;
+    updateProblemPreview();
+    sandboxMessage.hidden = true;
+    statusLine.textContent = 'Ejemplo cargado; pulsa «Resolver árbol paso a paso». ';
   }
 
   previousButton.addEventListener('click', () => showStep(currentIndex - 1));
   nextButton.addEventListener('click', () => showStep(currentIndex + 1));
   playButton.addEventListener('click', play);
   pauseButton.addEventListener('click', () => setPlaying(false));
-  resetButton.addEventListener('click', resetPlayback);
-  speedInput.addEventListener('input', () => { speedOutput.value = `${Number(speedInput.value).toFixed(1)}×`; speedOutput.textContent = `${Number(speedInput.value).toFixed(1)}×`; });
+  resetButton.addEventListener('click', () => { currentIndex = -1; resetPlayback(); });
+  speedInput.addEventListener('input', () => {
+    speedOutput.value = `${Number(speedInput.value).toFixed(1)}×`;
+    speedOutput.textContent = `${Number(speedInput.value).toFixed(1)}×`;
+  });
+  basicButton.addEventListener('click', () => loadTree(originalTreeText));
+  multilevelButton.addEventListener('click', () => loadTree(JSON.stringify(MULTILEVEL_TREE, null, 2)));
+  treeInput.addEventListener('input', updateProblemPreview);
   form.addEventListener('submit', construir);
-  form.querySelectorAll('input, select, textarea').forEach((input) => input.addEventListener('input', updateProblemPreview));
-  updateProblemPreview();
   window.addEventListener('beforeunload', () => setPlaying(false));
-
+  updateProblemPreview();
   previousButton.disabled = true;
   nextButton.disabled = true;
-  pauseButton.addEventListener('click', () => { timer = null; });
 
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (character) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));

@@ -14,67 +14,32 @@
 <main class="layout-container page-grid">
     <article class="intro-block">
       <p class="eyebrow">LABORATORIO · CINCO ALGORITMOS</p>
-      <h1>Haz visible cómo aprende un árbol.</h1>
-      <p class="lead">Avanza una decisión a la vez. El sistema muestra qué mide, por qué lo mide, qué probabilidad tiene cada rama y qué cambia en la estructura.</p>
+      <h1>Decide con probabilidades y pagos.</h1>
+      <p class="lead">Construye y resuelve un árbol de decisión paso a paso: asigna probabilidades a los sucesos, pagos a los resultados y compara los valores esperados por inducción hacia atrás.</p>
     </article>
 
     <section id="arboles" class="workspace-card" aria-labelledby="titulo-arbol">
       <header class="section-heading">
         <div>
           <p class="eyebrow">ALGORITMO ACTIVO</p>
-          <h2 id="titulo-arbol">Crecimiento y recorrido</h2>
+          <h2 id="titulo-arbol">Árboles de decisión por valor esperado</h2>
         </div>
         <p id="status-line" class="status-line" role="status">Listo para construir un árbol.</p>
       </header>
 
-      <form id="tree-form" class="control-grid">
-        <fieldset class="field-group">
-          <legend>Variable objetivo</legend>
-          <label for="target-input">Nombre de la clase</label>
-          <input id="target-input" name="target" value="Jugar" autocomplete="off" spellcheck="false">
-        </fieldset>
-
-        <fieldset class="field-group">
-          <legend>Criterio de división</legend>
-          <label for="criterion-select">Cómo medimos la mezcla</label>
-          <select id="criterion-select" name="criterion">
-            <option value="entropy">Entropía + Ganancia de Información</option>
-            <option value="gini">Gini + Reducción de impureza</option>
-          </select>
-        </fieldset>
-
-        <fieldset class="field-group">
-          <legend>Profundidad máxima</legend>
-          <label for="depth-input">Niveles permitidos</label>
-          <input id="depth-input" name="max_depth" type="number" min="1" max="8" step="1" value="4">
-        </fieldset>
-
-        <fieldset class="field-group">
-          <legend>Ejemplo para recorrer</legend>
-          <label for="sample-input">Índice de fila</label>
-          <input id="sample-input" name="sample_index" type="number" min="0" max="99" step="1" value="0">
-        </fieldset>
-
+      <form id="tree-form" class="control-grid tree-input-form">
         <fieldset class="field-group field-group--wide">
-          <legend>Datos de aprendizaje</legend>
-          <label for="dataset-input">Una fila JSON por objeto, separando campos con comas dentro de cada objeto.</label>
-          <textarea id="dataset-input" rows="8" spellcheck="false">[
-  {"Clima":"Soleado","Humedad":"Alta","Viento":"Débil","Jugar":"No"},
-  {"Clima":"Soleado","Humedad":"Alta","Viento":"Fuerte","Jugar":"No"},
-  {"Clima":"Nublado","Humedad":"Alta","Viento":"Débil","Jugar":"Sí"},
-  {"Clima":"Nublado","Humedad":"Alta","Viento":"Fuerte","Jugar":"Sí"},
-  {"Clima":"Lluvia","Humedad":"Alta","Viento":"Débil","Jugar":"Sí"},
-  {"Clima":"Lluvia","Humedad":"Normal","Viento":"Débil","Jugar":"Sí"},
-  {"Clima":"Lluvia","Humedad":"Normal","Viento":"Fuerte","Jugar":"No"},
-  {"Clima":"Nublado","Humedad":"Normal","Viento":"Fuerte","Jugar":"Sí"},
-  {"Clima":"Soleado","Humedad":"Normal","Viento":"Débil","Jugar":"Sí"},
-  {"Clima":"Soleado","Humedad":"Normal","Viento":"Fuerte","Jugar":"Sí"}
-]</textarea>
+          <legend>Modelo del problema</legend>
+          <label for="tree-json-input">Árbol en formato JSON</label>
+          <p class="field-hint">Cada nodo de decisión contiene <code>options</code>; cada nodo de azar contiene <code>events</code> y cada suceso necesita una <code>probability</code> entre 0 y 1. El campo <code>payoff</code> define la ganancia o pérdida asociada a esa rama. Si la rama tiene <code>next</code>, ese pago se suma al valor futuro; sin <code>next</code>, es un pago terminal. Para un pago final explícito usa un nodo <code>terminal</code> con <code>label</code> y <code>payoff</code>. Las probabilidades de cada nodo de azar deben sumar 1.</p>
+          <textarea id="tree-json-input" name="tree" rows="17" spellcheck="false">{{ default_tree_json }}</textarea>
         </fieldset>
-
-        <button id="build-button" type="submit" class="ui-button ui-button--primary">CONSTRUIR PASO A PASO</button>
+        <div class="tree-example-actions">
+          <button id="basic-example-button" class="ui-button" type="button">CARGAR EJEMPLO DE CLASE</button>
+          <button id="multilevel-example-button" class="ui-button" type="button">CARGAR EJEMPLO MULTINIVEL</button>
+          <button id="build-button" type="submit" class="ui-button ui-button--primary">RESOLVER ÁRBOL PASO A PASO</button>
+        </div>
       </form>
-
       <section id="tree-problem-data" class="problem-data-host" aria-label="Datos del problema"></section>
 
       <section id="playback" class="playback" aria-label="Controles de ejecución">
@@ -102,7 +67,7 @@
             <p id="step-counter" class="step-counter">Paso 0 / 0</p>
           </header>
           <div id="tree-canvas" class="tree-canvas" aria-live="polite">
-            <p class="empty-state">Construye el árbol y comienza con <strong>Paso siguiente</strong>.</p>
+            <p class="empty-state">Resuelve el ejemplo y avanza con <strong>Paso siguiente</strong>.</p>
           </div>
         </article>
 
@@ -140,24 +105,22 @@
 
     <section id="metodo" class="method-strip" aria-labelledby="method-title">
       <p class="eyebrow">LECTURA GUIADA</p>
-      <h2 id="method-title">Tres preguntas para seguir cada paso</h2>
+      <h2 id="method-title">Cómo se resuelve el árbol</h2>
       <ol>
-        <li><strong>¿Qué mide?</strong> Observa la fórmula antes de mirar el resultado.</li>
-        <li><strong>¿Por qué ahora?</strong> La narración conecta la operación con la decisión del árbol.</li>
-        <li><strong>¿Qué cambió?</strong> El nodo activo y la rama resaltada muestran el efecto.</li>
+        <li><strong>Asigna probabilidades.</strong> Cada nodo de azar reparte una probabilidad entre sus sucesos y las probabilidades deben sumar 1.</li>
+        <li><strong>Registra los pagos.</strong> Cada resultado posible tiene un pago que puede ser positivo (ganancia) o negativo (pérdida).</li>
+        <li><strong>Resuelve de atrás hacia adelante.</strong> En nodos de azar se suma probabilidad × pago total; en nodos de decisión se elige el mayor valor.</li>
       </ol>
     </section>
 
     <section id="criterio" class="formula-note" aria-labelledby="criterion-title">
-      <p class="eyebrow">TRANSPARENCIA MATEMÁTICA</p>
-      <h2 id="criterion-title">Criterios disponibles</h2>
-      <p><strong>Entropía:</strong> H(S) = -Σ p(c) log₂ p(c). La ganancia compara la impureza antes y después de dividir.</p>
-      <p><strong>Gini:</strong> Gini(S) = 1 - Σ p(c)². La reducción compara el Gini del nodo con el promedio ponderado de sus hijos.</p>
-      <p><strong>Probabilidad de rama:</strong> p(v) = |S_v| / |S|.</p>
-      <p><strong>Suma-producto:</strong> I_ponderada = Σ p(v)·I(S_v). El diagrama muestra cada aporte p(v)·I(S_v) junto a su rama.</p>
-      <p class="note">Estas definiciones son estándar y no fueron extraídas de una diapositiva específica del material proporcionado.</p>
+      <p class="eyebrow">REGLAS DEL ÁRBOL</p>
+      <h2 id="criterion-title">Probabilidades, pagos y valor esperado</h2>
+      <p><strong>Nodo de azar:</strong> VE = Σ p(s) × [pago del suceso + valor esperado posterior].</p>
+      <p><strong>Nodo de decisión:</strong> V* = máx(alternativas). Se conserva la alternativa con el mayor pago esperado.</p>
+      <p><strong>Validación:</strong> las probabilidades que salen de cada nodo de azar deben sumar 1 (100 %). Los pagos pueden ser positivos o negativos y se expresan en la misma unidad.</p>
+      <p class="note">El ejemplo inicial corresponde al caso de presupuesto de una serie de la presentación «Toma de Decisiones sin experimentación II»: bajo presupuesto tiene pagos 5 y −1 con probabilidades 0.6 y 0.4; alto presupuesto tiene pagos 4 y −2 con probabilidades 0.8 y 0.2. Todas las cantidades del ejemplo están expresadas en millones.</p>
     </section>
-
     <section class="lab-index" id="laboratorios" aria-labelledby="labs-title">
       <p class="eyebrow">RUTA DE APRENDIZAJE</p>
       <h2 id="labs-title">Cinco laboratorios, un mismo recorrido</h2>
@@ -165,7 +128,7 @@
         <article class="lab-card">
           <p class="eyebrow">01</p>
           <h3>Árboles de decisión</h3>
-          <p>Compara Entropía y Gini, selecciona divisiones y sigue la predicción.</p>
+          <p>Asigna probabilidades y pagos, calcula valores esperados y elige la política óptima.</p>
           <a class="ui-button" href="/">ABRIR</a>
         </article>
         <article class="lab-card">

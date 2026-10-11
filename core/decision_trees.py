@@ -1,580 +1,326 @@
-"""Generador paso a paso para árboles de decisión categóricos.
+"""Árboles de decisión económicos con probabilidades, pagos y valor esperado.
 
-La interfaz se apoya en tres ideas estándar:
-- Entropía + Ganancia de Información.
-- Índice Gini + reducción de impureza.
-- Selección recursiva de la mejor característica.
-
-La presentación de estos conceptos no se encuentra en los archivos docentes
-entregados para este proyecto, por lo que esta implementación no afirma
-fidelidad literal a una diapositiva concreta.
+La implementación sigue el enfoque de las presentaciones: nodos de decisión,
+nodos de suceso/azar, pagos en los resultados y evaluación por inducción hacia
+atrás. No calcula entropía, Gini ni ganancia de información.
 """
-
 from __future__ import annotations
 
-from collections import Counter
 from copy import deepcopy
-from dataclasses import dataclass
-from math import log2
+from math import isfinite
 from typing import Any
 
 from .step_schema import crear_paso
 
 
-DEFAULT_DATASET: list[dict[str, str]] = [
-    {"Clima": "Soleado", "Humedad": "Alta", "Viento": "Débil", "Jugar": "No"},
-    {"Clima": "Soleado", "Humedad": "Alta", "Viento": "Fuerte", "Jugar": "No"},
-    {"Clima": "Nublado", "Humedad": "Alta", "Viento": "Débil", "Jugar": "Sí"},
-    {"Clima": "Nublado", "Humedad": "Alta", "Viento": "Fuerte", "Jugar": "Sí"},
-    {"Clima": "Lluvia", "Humedad": "Alta", "Viento": "Débil", "Jugar": "Sí"},
-    {"Clima": "Lluvia", "Humedad": "Normal", "Viento": "Débil", "Jugar": "Sí"},
-    {"Clima": "Lluvia", "Humedad": "Normal", "Viento": "Fuerte", "Jugar": "No"},
-    {"Clima": "Nublado", "Humedad": "Normal", "Viento": "Fuerte", "Jugar": "Sí"},
-    {"Clima": "Soleado", "Humedad": "Normal", "Viento": "Débil", "Jugar": "Sí"},
-    {"Clima": "Soleado", "Humedad": "Normal", "Viento": "Fuerte", "Jugar": "Sí"},
-    {"Clima": "Lluvia", "Humedad": "Normal", "Viento": "Fuerte", "Jugar": "No"},
-    {"Clima": "Nublado", "Humedad": "Alta", "Viento": "Débil", "Jugar": "Sí"},
-    {"Clima": "Soleado", "Humedad": "Alta", "Viento": "Débil", "Jugar": "No"},
-    {"Clima": "Lluvia", "Humedad": "Alta", "Viento": "Fuerte", "Jugar": "No"},
-]
+DEFAULT_TREE: dict[str, Any] = {
+    "type": "decision",
+    "label": "Elegir el presupuesto de la serie",
+    "options": [
+        {
+            "label": "Bajo presupuesto",
+            "next": {
+                "type": "chance",
+                "label": "Resultado con presupuesto bajo",
+                "events": [
+                    {"label": "Éxito", "probability": 0.6, "payoff": 5},
+                    {"label": "Fracaso", "probability": 0.4, "payoff": -1},
+                ],
+            },
+        },
+        {
+            "label": "Alto presupuesto",
+            "next": {
+                "type": "chance",
+                "label": "Resultado con presupuesto alto",
+                "events": [
+                    {"label": "Éxito", "probability": 0.8, "payoff": 4},
+                    {"label": "Fracaso", "probability": 0.2, "payoff": -2},
+                ],
+            },
+        },
+    ],
+}
 
 
 class ArbolInputError(ValueError):
-    """Error controlado del sandbox; nunca debe llegar como traza al usuario."""
+    """Error de validación explicable en la interfaz."""
 
 
-@dataclass(slots=True)
-class TreeNode:
-    id: str
-    majority: str
-    samples: list[int]
-    depth: int
-    feature: str | None = None
-    prediction: str | None = None
-    children: dict[str, "TreeNode"] | None = None
+def default_payload() -> dict[str, Any]:
+    return {"tree": deepcopy(DEFAULT_TREE)}
 
-    def snapshot(self) -> dict[str, Any]:
-        children = self.children or {}
-        return {
-            "id": self.id,
-            "etiqueta": self.feature if self.feature else f"Clase: {self.prediction or self.majority}",
-            "caracteristica": self.feature,
-            "prediccion": self.prediction,
-            "mayoria": self.majority,
-            "muestras": len(self.samples),
-            "profundidad": self.depth,
-            "es_hoja": self.feature is None,
-            "hijos": list(children),
+
+def _number(value: Any, context: str, *, min_value: float | None = None, max_value: float | None = None) -> float:
+    if isinstance(value, bool):
+        raise ArbolInputError(f"{context}: usa un número, no un valor verdadero/falso.")
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        raise ArbolInputError(f"{context}: hace falta un número válido.") from None
+    if not isfinite(n):
+        raise ArbolInputError(f"{context}: el número debe ser finito.")
+    if min_value is not None and n < min_value:
+        raise ArbolInputError(f"{context}: el valor no puede ser menor que {min_value}.")
+    if max_value is not None and n > max_value:
+        raise ArbolInputError(f"{context}: el valor no puede superar {max_value}.")
+    return n
+
+
+def _normalise_tree(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise ArbolInputError("El árbol debe ser un objeto JSON. Usa el ejemplo inicial como plantilla.")
+    counter = 0
+
+    def normalise(node_raw: Any, path: str, depth: int) -> dict[str, Any]:
+        nonlocal counter
+        if depth > 8:
+            raise ArbolInputError("El árbol admite hasta 8 niveles para mantener el diagrama legible.")
+        if not isinstance(node_raw, dict):
+            raise ArbolInputError(f"{path}: cada nodo debe ser un objeto JSON.")
+        kind = str(node_raw.get("type", "")).strip().lower()
+        if kind not in {"decision", "chance", "terminal"}:
+            raise ArbolInputError(f"{path}: el tipo debe ser 'decision', 'chance' o 'terminal'.")
+        label = str(node_raw.get("label", "")).strip()
+        if not label:
+            raise ArbolInputError(f"{path}: cada nodo necesita una etiqueta legible.")
+        counter += 1
+        if counter > 50:
+            raise ArbolInputError("El árbol admite hasta 50 nodos internos para mantener la visualización clara.")
+        if kind == "terminal":
+            payoff = _number(node_raw.get("payoff"), f"Pago terminal de «{label}»")
+            return {
+                "id": f"node-{counter}", "type": "terminal", "label": label,
+                "value": payoff, "calculated": True, "depth": depth, "branches": [],
+                "best_branch": None, "terminal_payoff": payoff,
+            }
+        node: dict[str, Any] = {
+            "id": f"node-{counter}", "type": kind, "label": label,
+            "value": None, "calculated": False, "depth": depth, "branches": [],
+            "best_branch": None,
         }
+        branches_key = "options" if kind == "decision" else "events"
+        branches = node_raw.get(branches_key)
+        if not isinstance(branches, list) or len(branches) < 2:
+            noun = "alternativas" if kind == "decision" else "sucesos"
+            raise ArbolInputError(f"{path}: agrega al menos dos {noun}.")
+        if len(branches) > 12:
+            raise ArbolInputError(f"{path}: admite hasta 12 ramas en un mismo nodo.")
+        probability_sum = 0.0
+        for idx, raw_branch in enumerate(branches, start=1):
+            branch_path = f"{path} → rama {idx}"
+            if not isinstance(raw_branch, dict):
+                raise ArbolInputError(f"{branch_path}: cada rama debe ser un objeto.")
+            branch_label = str(raw_branch.get("label", "")).strip()
+            if not branch_label:
+                raise ArbolInputError(f"{branch_path}: escribe el nombre de la alternativa o suceso.")
+            payoff = _number(raw_branch.get("payoff", 0), f"Pago de «{branch_label}»")
+            probability: float | None = None
+            if kind == "chance":
+                if "probability" not in raw_branch:
+                    raise ArbolInputError(f"{branch_path}: asigna una probabilidad entre 0 y 1.")
+                probability = _number(raw_branch["probability"], f"Probabilidad de «{branch_label}»", min_value=0, max_value=1)
+                probability_sum += probability
+            child_raw = raw_branch.get("next")
+            child: dict[str, Any] | None = None
+            branch_payoff = payoff
+            if child_raw is not None:
+                child = normalise(child_raw, branch_path, depth + 1)
+            else:
+                # Hoja terminal implícita: el pago corresponde al resultado final.
+                counter += 1
+                if counter > 50:
+                    raise ArbolInputError("El árbol admite hasta 50 nodos para mantener la visualización clara.")
+                child = {
+                    "id": f"node-{counter}", "type": "terminal", "label": branch_label,
+                    "value": payoff, "calculated": True, "depth": depth + 1,
+                    "branches": [], "best_branch": None, "terminal_payoff": payoff,
+                }
+                branch_payoff = 0.0
+            node["branches"].append({
+                "id": f"edge-{node['id']}-{idx}", "label": branch_label,
+                "probability": probability, "payoff": branch_payoff,
+                "terminal_payoff": payoff if raw_branch.get("next") is None else None,
+                "child": child, "value": None, "contribution": None,
+                "evaluated": False, "selected": False,
+            })
+        if kind == "chance" and abs(probability_sum - 1.0) > 0.001:
+            raise ArbolInputError(
+                f"{path}: las probabilidades deben sumar 1 (100 %); ahora suman {probability_sum:.4g}."
+            )
+        return node
+
+    root = normalise(raw, "Nodo inicial", 0)
+    if root["type"] != "decision":
+        raise ArbolInputError("El árbol debe comenzar con un nodo de decisión.")
+    return root
 
 
-def _clean_dataset(dataset: Any, target: str, max_rows: int = 100) -> list[dict[str, str]]:
-    if not isinstance(dataset, list) or not dataset:
-        raise ArbolInputError(
-            "Necesitamos al menos una fila de datos. Prueba con dos o más ejemplos para que el árbol pueda comparar patrones."
-        )
-    if len(dataset) > max_rows:
-        raise ArbolInputError(f"El sandbox admite hasta {max_rows} filas para conservar una visualización clara.")
-
-    clean: list[dict[str, str]] = []
-    for index, row in enumerate(dataset, start=1):
-        if not isinstance(row, dict):
-            raise ArbolInputError(f"La fila {index} no tiene formato de registro. Cada fila debe ser un objeto con pares campo/valor.")
-        normalized = {str(k).strip(): str(v).strip() for k, v in row.items() if str(k).strip()}
-        if target not in normalized:
-            raise ArbolInputError(f"La fila {index} no contiene la variable objetivo «{target}».")
-        if not normalized[target]:
-            raise ArbolInputError(f"La fila {index} tiene la clase objetivo vacía. Ese valor es necesario para aprender.")
-        clean.append(normalized)
-
-    fields = set().union(*(row.keys() for row in clean))
-    if len(fields) < 2:
-        raise ArbolInputError("Hace falta al menos una característica además de la variable objetivo.")
-    return clean
+def _fmt(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:,.4f}".rstrip("0").rstrip(".").replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _feature_names(dataset: list[dict[str, str]], target: str) -> list[str]:
-    names: list[str] = []
-    for key in dataset[0].keys():
-        if key != target and key not in names:
-            names.append(key)
-    return names
-
-
-def _class_counts(dataset: list[dict[str, str]], indices: list[int], target: str) -> Counter[str]:
-    return Counter(dataset[i][target] for i in indices)
-
-
-def _entropy(dataset: list[dict[str, str]], indices: list[int], target: str) -> float:
-    counts = _class_counts(dataset, indices, target)
-    total = len(indices)
-    if not total:
-        return 0.0
-    return -sum((count / total) * log2(count / total) for count in counts.values() if count)
-
-
-def _gini(dataset: list[dict[str, str]], indices: list[int], target: str) -> float:
-    counts = _class_counts(dataset, indices, target)
-    total = len(indices)
-    if not total:
-        return 0.0
-    return 1.0 - sum((count / total) ** 2 for count in counts.values())
-
-
-def _split_indices(dataset: list[dict[str, str]], indices: list[int], feature: str) -> dict[str, list[int]]:
-    groups: dict[str, list[int]] = {}
-    for i in indices:
-        value = dataset[i].get(feature, "(vacío)") or "(vacío)"
-        groups.setdefault(value, []).append(i)
-    return dict(sorted(groups.items(), key=lambda item: item[0]))
-
-
-def _weighted_impurity(
-    dataset: list[dict[str, str]],
-    groups: dict[str, list[int]],
-    target: str,
-    metric: str,
-) -> float:
-    total = sum(len(group) for group in groups.values())
-    if not total:
-        return 0.0
-    fn = _entropy if metric == "entropy" else _gini
-    return sum(len(group) / total * fn(dataset, group, target) for group in groups.values())
-
-
-def _score_feature(dataset: list[dict[str, str]], indices: list[int], feature: str, target: str, metric: str) -> dict[str, Any]:
-    groups = _split_indices(dataset, indices, feature)
-    if metric == "entropy":
-        parent = _entropy(dataset, indices, target)
-        child = _weighted_impurity(dataset, groups, target, metric)
-        score = parent - child
-        return {"score": score, "parent": parent, "child": child, "groups": groups, "metric_name": "Ganancia de Información"}
-    parent = _gini(dataset, indices, target)
-    child = _weighted_impurity(dataset, groups, target, metric)
-    score = parent - child
-    return {"score": score, "parent": parent, "child": child, "groups": groups, "metric_name": "Reducción de Gini"}
-
-
-def _fmt(value: float) -> str:
-    return f"{value:.6f}".rstrip("0").rstrip(".")
-
-
-def _tree_visual(
-    root: TreeNode | None,
-    active_node: str | None = None,
-    path: list[str] | None = None,
-    sample: dict[str, str] | None = None,
-    active_feature: str | None = None,
-    candidates: list[str] | None = None,
-    target: str = "Jugar",
-    criterion: str = "entropy",
-    split_info: dict[str, Any] | None = None,
-    active_edge_value: str | None = None,
-    dataset: list[dict[str, str]] | None = None,
-) -> dict[str, Any]:
-    """Serializa el árbol junto con probabilidades de ramas y suma-producto."""
+def _snapshot(root: dict[str, Any], active_node: str | None = None, active_edge: str | None = None) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
 
-    source = dataset or []
-
-    def impurity(indices: list[int]) -> float:
-        return _entropy(source, indices, target) if criterion == "entropy" else _gini(source, indices, target)
-
-    def walk(node: TreeNode) -> None:
-        base = node.snapshot()
-        child_items = list((node.children or {}).items())
-        total = max(1, len(node.samples))
-        child_stats: list[dict[str, Any]] = []
-        for value, child in child_items:
-            prob = len(child.samples) / total
-            child_impurity = impurity(child.samples)
-            contribution = prob * child_impurity
-            child_stats.append({
-                "valor": value,
-                "probabilidad": prob,
-                "impureza_hijo": child_impurity,
-                "aporte_ponderado": contribution,
-            })
+    def walk(node: dict[str, Any]) -> None:
+        kind = node["type"]
+        nodes.append({
+            "id": node["id"], "tipo": kind,
+            "etiqueta": node["label"], "valor": node["value"],
+            "calculado": node["calculated"], "profundidad": node["depth"],
+            "terminal": kind == "terminal", "mejor_rama": node["best_branch"],
+            "nodo_terminal_pago": node.get("terminal_payoff"),
+        })
+        for branch in node["branches"]:
+            child = branch["child"]
             edges.append({
-                "origen": node.id,
-                "destino": child.id,
-                "etiqueta": value,
-                "probabilidad": prob,
-                "muestras_hijo": len(child.samples),
-                "muestras_padre": len(node.samples),
-                "impureza_hijo": child_impurity,
-                "aporte_ponderado": contribution,
+                "id": branch["id"], "origen": node["id"], "destino": child["id"],
+                "etiqueta": branch["label"], "tipo": kind,
+                "probabilidad": branch["probability"], "pago": branch["payoff"],
+                "pago_terminal": branch["terminal_payoff"], "valor_alternativa": branch["value"],
+                "contribucion": branch["contribution"], "evaluada": branch["evaluated"],
+                "seleccionada": branch["selected"],
             })
-        if child_stats:
-            weighted = sum(item["aporte_ponderado"] for item in child_stats)
-            terms = " + ".join(
-                f"{item['probabilidad']:.3f}·{item['impureza_hijo']:.3f}" for item in child_stats
-            )
-            base["suma_producto"] = {
-                "formula": f"Σ p(v)·I(v) = {terms} = {weighted:.3f}",
-                "valor": weighted,
-                "terminos": child_stats,
-            }
-        elif split_info:
-            groups = split_info.get("groups", {})
-            total_split = max(1, sum(len(group) for group in groups.values()))
-            fn = _entropy if criterion == "entropy" else _gini
-            terms_data = []
-            for value, group in groups.items():
-                prob = len(group) / total_split
-                imp = fn(source, group, target)
-                terms_data.append((value, prob, imp, prob * imp))
-            weighted = sum(item[3] for item in terms_data)
-            terms = " + ".join(f"{prob:.3f}·{imp:.3f}" for _, prob, imp, _ in terms_data)
-            base["suma_producto"] = {
-                "formula": f"Σ p(v)·I(v) = {terms} = {weighted:.3f}",
-                "valor": weighted,
-                "terminos": [
-                    {"valor": value, "probabilidad": prob, "impureza_hijo": imp, "aporte_ponderado": contribution}
-                    for value, prob, imp, contribution in terms_data
-                ],
-            }
-        nodes.append(base)
-        for child in (node.children or {}).values():
             walk(child)
 
-    if root is not None:
-        walk(root)
-
-    return {
-        "tipo": "arbol",
-        "nodos": nodes,
-        "aristas": edges,
-        "nodo_activo": active_node,
-        "caracteristica_activa": active_feature,
-        "caracteristicas_candidatas": candidates or [],
-        "active_edge_value": active_edge_value,
-        "camino": path or [],
-        "muestra": sample or {},
-        "criterio": criterion,
-    }
+    walk(root)
+    return {"tipo": "arbol_decision_bayes", "nodos": nodes, "aristas": edges,
+            "nodo_activo": active_node, "arista_activa": active_edge,
+            "maximizar": True}
 
 
-
-def build_steps(
-    dataset: Any = None,
-    *,
-    target: str = "Jugar",
-    criterion: str = "entropy",
-    max_depth: int = 6,
-    sample_index: int = 0,
-) -> list[dict[str, Any]]:
-    """Construye los pasos pedagógicos de crecimiento y recorrido del árbol."""
-    data = _clean_dataset(DEFAULT_DATASET if dataset is None else dataset, target)
-    criterion = criterion if criterion in {"entropy", "gini"} else "entropy"
-    try:
-        max_depth = int(max_depth)
-    except (TypeError, ValueError):
-        max_depth = 6
-    max_depth = min(max(1, max_depth), 8)
-    try:
-        sample_index = int(sample_index)
-    except (TypeError, ValueError):
-        sample_index = 0
-    sample_index = min(max(0, sample_index), len(data) - 1)
-
-    features = _feature_names(data, target)
+def build_steps(tree: Any = None) -> list[dict[str, Any]]:
+    """Evalúa un árbol económico con probabilidad y pago, resolviendo de abajo arriba."""
+    root = _normalise_tree(DEFAULT_TREE if tree is None else tree)
     steps: list[dict[str, Any]] = []
-    root: TreeNode | None = None
-    node_counter = 0
-    path_for_sample: list[str] = []
 
-    def next_id() -> str:
-        nonlocal node_counter
-        node_counter += 1
-        return f"n{node_counter}"
+    def append(fase: str, titulo: str, formula: str, explicacion: str,
+               variables: dict[str, Any], active_node: str | None = None,
+               active_edge: str | None = None) -> None:
+        steps.append(crear_paso(
+            algoritmo="arbol_decision_bayes", paso=len(steps) + 1, total_pasos=0,
+            fase=fase, titulo=titulo, formula=formula, explicacion=explicacion,
+            variables=variables, enfoque={"tipo": "nodo", "nodo": active_node, "arista": active_edge},
+            estado_visual=_snapshot(root, active_node, active_edge),
+        ))
 
-    def append(
-        *,
-        fase: str,
-        titulo: str,
-        formula: str,
-        explicacion: str,
-        variables: dict[str, Any],
-        active_node: str | None = None,
-        active_feature: str | None = None,
-        candidates: list[str] | None = None,
-        split_info: dict[str, Any] | None = None,
-        active_edge_value: str | None = None,
-    ) -> None:
-        steps.append(
-            crear_paso(
-                algoritmo="arbol_decision",
-                paso=len(steps) + 1,
-                total_pasos=0,
-                fase=fase,
-                titulo=titulo,
-                formula=formula,
-                explicacion=explicacion,
-                variables=variables,
-                enfoque={"tipo": "nodo", "nodo": active_node, "caracteristica": active_feature},
-                estado_visual=_tree_visual(
-                    root,
-                    active_node=active_node,
-                    active_feature=active_feature,
-                    candidates=candidates,
-                    path=path_for_sample,
-                    sample=data[sample_index],
-                    target=target,
-                    criterion=criterion,
-                    split_info=split_info,
-                    active_edge_value=active_edge_value,
-                    dataset=data,
-                ),
+    def walk_nodes(node: dict[str, Any]) -> tuple[float, list[tuple[str, float]]]:
+        if node["type"] == "terminal":
+            value = float(node["value"] or 0)
+            return value, []
+
+        # Primero se resuelven los subárboles que siguen a cada rama.
+        child_values: dict[str, float] = {}
+        for branch in node["branches"]:
+            child_value, _ = walk_nodes(branch["child"])
+            child_values[branch["id"]] = child_value
+
+        if node["type"] == "chance":
+            contributions: list[tuple[str, float]] = []
+            for branch in node["branches"]:
+                child_value = child_values[branch["id"]]
+                probability = float(branch["probability"] or 0)
+                immediate = float(branch["payoff"] or 0)
+                reward_total = immediate + child_value
+                contribution = probability * reward_total
+                branch["contribution"] = contribution
+                branch["evaluated"] = True
+                contributions.append((branch["label"], contribution))
+                event_description = f"p = {_fmt(probability)}; pago del suceso = {_fmt(reward_total)}"
+                append(
+                    "Evaluación de un suceso",
+                    f"Calculamos el aporte de «{branch['label']}»",
+                    f"p × (pago + valor futuro) = {_fmt(probability)} × {_fmt(reward_total)} = {_fmt(contribution)}",
+                    f"El suceso «{branch['label']}» tiene probabilidad {_fmt(probability)}. Multiplicamos esa probabilidad por el pago del suceso más el valor de cualquier decisión posterior. Este es el aporte de esta rama al valor esperado.",
+                    {"suceso": branch["label"], "probabilidad": event_description,
+                     "pago_mas_valor_futuro": _fmt(reward_total), "aporte_esperado": _fmt(contribution)},
+                    node["id"], branch["id"],
+                )
+            total = sum(value for _, value in contributions)
+            node["value"] = total
+            node["calculated"] = True
+            terms = " + ".join(_fmt(value) for _, value in contributions)
+            append(
+                "Valor esperado",
+                f"Obtenemos el valor esperado de «{node['label']}»",
+                f"VE = Σ p(suceso) × pago total = {terms} = {_fmt(total)}",
+                "Sumamos los aportes ponderados de todos los sucesos. Como sus probabilidades suman 1, el resultado representa el pago medio esperado para este nodo si se llega a él.",
+                {"nodo_de_azar": node["label"], "aportes": {label: _fmt(value) for label, value in contributions},
+                 "valor_esperado": _fmt(total)},
+                node["id"],
             )
-        )
+            return total, contributions
 
-    root_indices = list(range(len(data)))
-    root_majority = _class_counts(data, root_indices, target).most_common(1)[0][0]
-    root = TreeNode(id=next_id(), majority=root_majority, samples=root_indices, depth=0)
-    parent_metric = _entropy(data, root_indices, target) if criterion == "entropy" else _gini(data, root_indices, target)
+        # Nodo de decisión: comparar el pago total de cada alternativa y conservar el máximo.
+        alternatives: list[tuple[dict[str, Any], float]] = []
+        for branch in node["branches"]:
+            child_value = child_values[branch["id"]]
+            total_value = float(branch["payoff"] or 0) + child_value
+            branch["value"] = total_value
+            branch["evaluated"] = True
+            alternatives.append((branch, total_value))
+            append(
+                "Comparación de alternativas",
+                f"Evaluamos «{branch['label']}»",
+                f"Pago inmediato + valor futuro = {_fmt(float(branch['payoff'] or 0))} + {_fmt(child_value)} = {_fmt(total_value)}",
+                f"La alternativa «{branch['label']}» vale {_fmt(total_value)}. Si conduce a un nodo de azar, usamos el valor esperado que ya calculamos para ese subárbol; si es un resultado terminal, usamos su pago.",
+                {"alternativa": branch["label"], "pago_inmediato": _fmt(float(branch["payoff"] or 0)),
+                 "valor_siguiente": _fmt(child_value), "valor_total": _fmt(total_value)},
+                node["id"], branch["id"],
+            )
+        best_branch, best_value = max(alternatives, key=lambda item: item[1])
+        node["best_branch"] = best_branch["id"]
+        for branch, _ in alternatives:
+            branch["selected"] = branch["id"] == best_branch["id"]
+        node["value"] = best_value
+        node["calculated"] = True
+        append(
+            "Decisión óptima",
+            f"Elegimos «{best_branch['label']}»",
+            f"V* = máx({'; '.join(_fmt(value) for _, value in alternatives)}) = {_fmt(best_value)}",
+            f"Comparamos los valores de todas las alternativas y conservamos la de mayor pago esperado. Esa es la decisión óptima para el nodo «{node['label']}».",
+            {"alternativas": {branch["label"]: _fmt(value) for branch, value in alternatives},
+             "alternativa_óptima": best_branch["label"], "valor_óptimo": _fmt(best_value)},
+            node["id"], best_branch["id"],
+        )
+        return best_value, [(branch["label"], value) for branch, value in alternatives]
 
     append(
-        fase="Preparación",
-        titulo="Partimos de todos los ejemplos",
-        formula=("H(S) = -Σ p(c) log₂ p(c)" if criterion == "entropy" else "Gini(S) = 1 - Σ p(c)²"),
-        explicacion=(
-            "El árbol comienza observando todos los casos. Primero medimos qué tan mezcladas están las clases; esa medida nos servirá para juzgar cada posible separación."
-        ),
-        variables={
-            "filas": len(root_indices),
-            "clases": dict(_class_counts(data, root_indices, target)),
-            "impureza_inicial": _fmt(parent_metric),
-            "criterio": "Entropía + Ganancia de Información" if criterion == "entropy" else "Gini + Reducción de impureza",
-        },
-        active_node=root.id,
-        candidates=features,
+        "Preparación",
+        "Identificamos decisiones, sucesos y pagos",
+        "Valor de un nodo de azar = Σ p(s) × pago total; valor de un nodo de decisión = máx(alternativas)",
+        "El árbol representa una decisión controlable (cuadrado) y sucesos aleatorios (círculos). Cada suceso tiene una probabilidad y cada resultado un pago. Resolveremos desde los resultados finales hacia la decisión inicial: primero los valores esperados y después la mejor alternativa.",
+        {"alternativas_iniciales": [branch["label"] for branch in root["branches"]],
+         "regla_de_azar": "sumar probabilidad × pago total", "regla_de_decisión": "elegir el mayor pago esperado"},
+        root["id"],
     )
-
-    def grow(indices: list[int], available_features: list[str], depth: int, parent_node: TreeNode) -> None:
-        counts = _class_counts(data, indices, target)
-        majority = counts.most_common(1)[0][0]
-        parent_node.majority = majority
-        parent_node.samples = indices
-        impurity = _entropy(data, indices, target) if criterion == "entropy" else _gini(data, indices, target)
-
-        append(
-            fase="Diagnóstico del nodo",
-            titulo=f"¿Este grupo ya es suficientemente claro? (nivel {depth})",
-            formula=("H(S) = -Σ p(c) log₂ p(c)" if criterion == "entropy" else "Gini(S) = 1 - Σ p(c)²"),
-            explicacion=(
-                f"Hay {len(indices)} ejemplos en este nodo. Si todos comparten la misma clase, ya no necesitamos dividirlos. Si no, buscamos la característica que más reduzca la mezcla."
-            ),
-            variables={
-                "nivel": depth,
-                "ejemplos": len(indices),
-                "clases": dict(counts),
-                "clase_mayoritaria": majority,
-                "impureza": _fmt(impurity),
-                "caracteristicas_disponibles": available_features,
-            },
-            active_node=parent_node.id,
-            candidates=available_features,
-        )
-
-        if len(counts) == 1:
-            parent_node.prediction = next(iter(counts))
-            append(
-                fase="Creación de hoja",
-                titulo=f"Hoja: predecimos «{parent_node.prediction}»",
-                formula="predicción = única clase presente en el nodo",
-                explicacion="Todos los ejemplos de este grupo tienen la misma respuesta. Seguir separando no aportaría información nueva, así que cerramos esta rama.",
-                variables={"prediccion": parent_node.prediction, "ejemplos": len(indices)},
-                active_node=parent_node.id,
-            )
-            return
-
-        if not available_features:
-            parent_node.prediction = majority
-            append(
-                fase="Creación de hoja",
-                titulo=f"No quedan características: usamos la mayoría ({majority})",
-                formula="predicción = argmax_c frecuencia(c)",
-                explicacion="Ya probamos todas las características disponibles. Para no inventar una regla nueva, la hoja toma la clase que aparece con mayor frecuencia en este grupo.",
-                variables={"prediccion": majority, "frecuencia_clase": dict(counts)},
-                active_node=parent_node.id,
-            )
-            return
-
-        if depth >= max_depth:
-            parent_node.prediction = majority
-            append(
-                fase="Límite del árbol",
-                titulo=f"Alcanzamos la profundidad máxima: {majority}",
-                formula="predicción = clase mayoritaria del nodo",
-                explicacion="El sandbox detiene el crecimiento en este nivel para mantener un árbol manejable. La decisión más prudente aquí es usar la clase mayoritaria.",
-                variables={"profundidad_maxima": max_depth, "prediccion": majority},
-                active_node=parent_node.id,
-            )
-            return
-
-        scores: list[tuple[str, dict[str, Any]]] = []
-        for feature in available_features:
-            result = _score_feature(data, indices, feature, target, criterion)
-            scores.append((feature, result))
-            group_summary = {value: len(group) for value, group in result["groups"].items()}
-            if criterion == "entropy":
-                formula = f"IG(S,{feature}) = { _fmt(result['parent']) } - { _fmt(result['child']) } = { _fmt(result['score']) }"
-            else:
-                formula = f"ΔGini(S,{feature}) = { _fmt(result['parent']) } - { _fmt(result['child']) } = { _fmt(result['score']) }"
-            append(
-                fase="Evaluación de características",
-                titulo=f"Medimos «{feature}»",
-                formula=formula,
-                explicacion=f"Probamos esta característica como punto de separación. Buscamos que los grupos resultantes queden más puros; por eso nos interesa la mayor reducción de impureza.",
-                variables={
-                    "caracteristica": feature,
-                    "impureza_padre": _fmt(result["parent"]),
-                    "impureza_ponderada_hijos": _fmt(result["child"]),
-                    "puntuacion": _fmt(result["score"]),
-                    "particiones": group_summary,
-                    "criterio": result["metric_name"],
-                },
-                active_node=parent_node.id,
-                active_feature=feature,
-                candidates=available_features,
-            )
-
-        scores.sort(key=lambda item: (-item[1]["score"], available_features.index(item[0])))
-        best_feature, best_result = scores[0]
-        parent_node.feature = best_feature
-        parent_node.children = {}
-
-        append(
-            fase="Selección de característica",
-            titulo=f"Elegimos «{best_feature}» para dividir el nodo",
-            formula=f"mejor característica = argmax({', '.join(feature for feature, _ in scores)})",
-            explicacion=f"«{best_feature}» produce la mayor reducción de impureza entre las opciones disponibles. El árbol gana claridad al usarla ahora.",
-            variables={
-                "caracteristica_elegida": best_feature,
-                "puntuacion_elegida": _fmt(best_result["score"]),
-                "puntuaciones": {feature: _fmt(result["score"]) for feature, result in scores},
-            },
-            active_node=parent_node.id,
-            active_feature=best_feature,
-            split_info=best_result,
-        )
-
-        remaining = [feature for feature in available_features if feature != best_feature]
-        for value, child_indices in best_result["groups"].items():
-            child = TreeNode(id=next_id(), majority=_class_counts(data, child_indices, target).most_common(1)[0][0], samples=child_indices, depth=depth + 1)
-            parent_node.children[value] = child
-            append(
-                fase="Expansión del árbol",
-                titulo=f"Abrimos la rama «{best_feature} = {value}»",
-                formula=f"S_{value} = {{ejemplos con {best_feature} = {value}}}",
-                explicacion=f"Ahora nos quedamos solo con los ejemplos que siguen la condición «{best_feature} = {value}». Esa rama podrá descubrir una regla más específica.",
-                variables={
-                    "caracteristica": best_feature,
-                    "valor": value,
-                    "ejemplos_en_rama": len(child_indices),
-                    "clase_mayoritaria": child.majority,
-                },
-                active_node=child.id,
-                active_feature=best_feature,
-                split_info=best_result,
-                active_edge_value=value,
-            )
-            grow(child_indices, remaining, depth + 1, child)
-
-    grow(root_indices, features, 0, root)
-
-    # Recorrido de un ejemplo seleccionado.
-    node = root
-    path_for_sample = []
-    sample = data[sample_index]
-    prediction: str | None = None
+    optimum, _ = walk_nodes(root)
     append(
-        fase="Recorrido guiado",
-        titulo="Probamos una observación del conjunto",
-        formula="seguir la rama cuyo valor coincide con la característica del ejemplo",
-        explicacion="Con el árbol aprendido, ahora caminamos por una observación real. El objetivo es ver cómo una cadena de decisiones simples termina en una predicción.",
-        variables={"indice_ejemplo": sample_index, "ejemplo": sample, "clase_real": sample[target]},
-        active_node=root.id,
+        "Solución final",
+        f"Política óptima: valor esperado {_fmt(optimum)}",
+        f"V*(inicio) = {_fmt(optimum)}",
+        "La inducción hacia atrás ya ha resuelto todos los nodos. La rama resaltada desde el nodo inicial indica la decisión óptima; los nodos posteriores muestran sus valores esperados y los pagos de cada resultado.",
+        {"valor_esperado_óptimo": _fmt(optimum), "política_óptima": _policy(root),
+         "unidad": "millones, según el ejemplo de la presentación"},
+        root["id"], root.get("best_branch"),
     )
-
-    while node is not None:
-        path_for_sample.append(node.id)
-        if node.feature is None:
-            prediction = node.prediction or node.majority
-            append(
-                fase="Recorrido guiado",
-                titulo=f"Llegamos a la hoja: «{prediction}»",
-                formula="predicción = valor almacenado en la hoja",
-                explicacion=f"Esta es la respuesta final del recorrido. Comparamos después con la clase real del ejemplo para que puedas observar si el árbol acertó.",
-                variables={
-                    "prediccion": prediction,
-                    "clase_real": sample[target],
-                    "acierto": prediction == sample[target],
-                    "camino": path_for_sample,
-                },
-                active_node=node.id,
-            )
-            break
-
-        value = sample.get(node.feature, "(vacío)") or "(vacío)"
-        child = (node.children or {}).get(value)
-        append(
-            fase="Recorrido guiado",
-            titulo=f"Preguntamos: ¿{node.feature} = {value}?",
-            formula=f"rama = hijo({node.feature} = {value})",
-            explicacion=f"El árbol consulta la característica «{node.feature}» del ejemplo. Como vale «{value}», seguimos esa rama y no las demás.",
-            variables={
-                "caracteristica": node.feature,
-                "valor_observado": value,
-                "ramas_disponibles": list((node.children or {}).keys()),
-                "rama_encontrada": child is not None,
-            },
-            active_node=node.id,
-            active_feature=node.feature,
-            active_edge_value=value,
-        )
-        if child is None:
-            prediction = node.majority
-            append(
-                fase="Recorrido guiado",
-                titulo=f"No existe esa rama; usamos la mayoría ({prediction})",
-                formula="predicción = mayoría del nodo actual",
-                explicacion="El valor del ejemplo no apareció mientras se entrenaba el árbol. Para que el sandbox siga siendo seguro, hacemos una predicción de respaldo usando la clase mayoritaria del nodo.",
-                variables={"prediccion": prediction, "valor_no_visto": value, "clase_real": sample[target]},
-                active_node=node.id,
-            )
-            break
-        node = child
-
-    if prediction is not None:
-        append(
-            fase="Cierre",
-            titulo="El recorrido queda registrado",
-            formula="acierto = (predicción = clase real)",
-            explicacion="Terminamos comparando la predicción con la respuesta conocida. Este último paso convierte el recorrido en evidencia observable para aprender del comportamiento del árbol.",
-            variables={
-                "prediccion": prediction,
-                "clase_real": sample[target],
-                "acierto": prediction == sample[target],
-                "total_nodos": node_counter,
-            },
-            active_node=path_for_sample[-1] if path_for_sample else root.id,
-        )
-
     total = len(steps)
-    for step in steps:
+    for index, step in enumerate(steps, 1):
+        step["paso"] = index
         step["total_pasos"] = total
     return steps
 
 
-def default_payload() -> dict[str, Any]:
-    """Configuración inicial segura para el frontend."""
-    return {
-        "dataset": deepcopy(DEFAULT_DATASET),
-        "target": "Jugar",
-        "criterion": "entropy",
-        "max_depth": 4,
-        "sample_index": 0,
-    }
+def _policy(node: dict[str, Any]) -> dict[str, Any]:
+    if node["type"] == "terminal":
+        return {"resultado": node["label"], "pago": _fmt(node["value"])}
+    if node["type"] == "decision":
+        branch = next((edge for edge in node["branches"] if edge["selected"]), None)
+        if branch is None:
+            return {"decisión": node["label"], "pendiente": True}
+        return {"decisión": node["label"], "elegir": branch["label"], "continuación": _policy(branch["child"])}
+    return {"suceso": node["label"], "continuaciones": [_policy(edge["child"]) for edge in node["branches"]]}

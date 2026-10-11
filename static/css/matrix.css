@@ -666,3 +666,111 @@ html[data-theme="dark"] .diagram-viewport-controls { background: var(--surface-s
   .diagram-viewport-controls__axes { grid-template-columns: 1fr; }
   .diagram-viewport-controls .ui-button { flex: 1 1 auto; }
 }
+
+/* =========================================================
+   ÁRBOLES DE DECISIÓN ECONÓMICOS · PROBABILIDADES Y PAGOS
+   ========================================================= */
+.tree-input-form { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.tree-input-form .field-group { grid-column: 1 / -1; }
+.field-hint { max-width: 100ch; margin: 0 0 10px; color: var(--color-muted); font-size: .9rem; line-height: 1.45; }
+.field-hint code { padding: 1px 4px; border: 1px solid var(--line-soft); background: var(--color-void); font-size: .86em; }
+#tree-json-input { min-height: 300px; tab-size: 2; line-height: 1.45; }
+.tree-example-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; }
+.tree-example-actions .ui-button { flex: 0 1 auto; }
+.tree-example-actions #build-button { margin-left: auto; }
+
+.tree-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin: 0 0 12px; padding: 12px 14px; background: var(--surface-soft); border: 1px solid var(--line-soft); font-size: .8rem; font-weight: 700; }
+.tree-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.tree-legend__square, .tree-legend__circle, .tree-legend__terminal { display: inline-block; width: 14px; height: 14px; background: var(--color-void); border: 2px solid var(--color-architecture); }
+.tree-legend__circle { border-radius: 50%; border-color: var(--color-cobalt); }
+.tree-legend__terminal { border-radius: 4px; border-color: var(--color-muted); }
+.tree-diagram-scroll { padding: 16px; border: 2px solid var(--color-architecture); background: var(--color-void); }
+.tree-svg { min-width: 0; height: auto; overflow: visible; }
+.tree-edge { fill: none; stroke: var(--line-soft); stroke-width: 2.2; stroke-linecap: round; }
+.tree-edge-group.is-selected .tree-edge { stroke: var(--color-cobalt); stroke-width: 3.5; }
+.tree-edge-group.is-active .tree-edge { stroke: var(--color-catalyst); stroke-width: 4; }
+.tree-edge-label-box rect { fill: var(--color-void); stroke: var(--line-soft); stroke-width: 1.5; }
+.tree-edge-group.is-selected .tree-edge-label-box rect { stroke: var(--color-cobalt); stroke-width: 2; }
+.tree-edge-group.is-active .tree-edge-label-box rect { stroke: var(--color-catalyst); stroke-width: 2.5; }
+.tree-edge-detail { text-anchor: middle; dominant-baseline: middle; fill: var(--color-architecture); font-family: var(--font-sans); font-size: 12px; font-weight: 750; stroke: none !important; paint-order: normal; }
+.tree-edge-detail--best { fill: var(--color-cobalt); font-size: 10.5px; font-weight: 950; letter-spacing: .03em; }
+.tree-node-rect { fill: var(--color-void); stroke: var(--color-architecture); stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+.tree-node--decision .tree-node-rect { stroke: var(--color-cobalt); }
+.tree-node--chance .tree-node-rect { stroke: var(--color-architecture); }
+.tree-node--terminal .tree-node-rect { fill: var(--surface-soft); stroke: var(--color-muted); stroke-dasharray: 4 2; }
+.tree-node.is-active .tree-node-rect { fill: var(--surface-danger); stroke: var(--color-catalyst); stroke-width: 4; }
+.tree-node-symbol { fill: var(--color-void); stroke: var(--color-architecture); stroke-width: 2; }
+.tree-node-symbol--decision { stroke: var(--color-cobalt); }
+.tree-node-symbol--chance { stroke: var(--color-catalyst); }
+.tree-node-symbol--terminal { fill: var(--surface-soft); stroke: var(--color-muted); }
+.tree-node-type { text-anchor: middle; font-family: var(--font-sans); font-size: 9.5px; font-weight: 950; letter-spacing: .08em; fill: var(--color-muted); }
+.tree-node-text { fill: var(--color-architecture); text-anchor: middle; dominant-baseline: auto; font-family: var(--font-sans); font-size: 13px; font-weight: 850; stroke: none !important; paint-order: normal; }
+.tree-node-separator { stroke: var(--line-soft); stroke-width: 1; }
+.tree-node-value { fill: var(--color-architecture); text-anchor: middle; dominant-baseline: middle; font-family: var(--font-sans); font-size: 12px; font-weight: 900; }
+.tree-node--decision.has-best .tree-node-value { fill: var(--color-cobalt); }
+.tree-node--chance .tree-node-value { fill: var(--color-catalyst); }
+.tree-node.is-active .tree-node-value { fill: var(--color-catalyst); }
+
+/* Todos los controles deslizantes comparten una pista y un tirador coherentes. */
+input[type="range"] {
+  --range-track: var(--line-soft);
+  --range-thumb: var(--color-catalyst);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--range-thumb);
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--range-thumb), var(--range-thumb)) left center / var(--range-progress, 50%) 100% no-repeat, var(--range-track);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-architecture) 12%, transparent);
+}
+input[type="range"]::-moz-range-track {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--range-track);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-architecture) 12%, transparent);
+}
+input[type="range"]::-moz-range-progress { height: 7px; border-radius: 999px; background: var(--range-thumb); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 19px;
+  height: 19px;
+  margin-top: -6px;
+  border: 3px solid var(--color-void);
+  border-radius: 50%;
+  background: var(--range-thumb);
+  box-shadow: 0 0 0 2px var(--range-thumb), 0 2px 6px rgb(0 0 0 / 20%);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border: 3px solid var(--color-void);
+  border-radius: 50%;
+  background: var(--range-thumb);
+  box-shadow: 0 0 0 2px var(--range-thumb), 0 2px 6px rgb(0 0 0 / 20%);
+}
+input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+input[type="range"]:focus-visible { outline: 3px solid var(--color-cobalt); outline-offset: 4px; border-radius: 999px; }
+.speed-control input[type="range"] { margin-top: 5px; }
+.diagram-scale-control input[type="range"] { min-height: 34px; }
+
+html[data-theme="dark"] .tree-edge-label-box rect { fill: var(--color-void); }
+html[data-theme="dark"] .tree-node--terminal .tree-node-rect { fill: var(--surface-soft); }
+html[data-theme="dark"] .tree-node-symbol { fill: var(--color-void); }
+html[data-theme="dark"] .field-hint code { background: var(--surface-soft); }
+@media (max-width: 760px) {
+  .tree-example-actions { display: grid; grid-template-columns: 1fr; }
+  .tree-example-actions #build-button { margin-left: 0; }
+  #tree-json-input { min-height: 240px; }
+  .tree-legend { gap: 8px 12px; }
+}

@@ -30,20 +30,57 @@
       </section>`;
   }
 
-  function tree(container, dataset, target, criterion, maxDepth) {
-    if (!Array.isArray(dataset) || !dataset.length) {
-      shell(container, 'Datos del problema', 'Escribe el conjunto de ejemplos para visualizarlo aquí.', [], '<p class="problem-data__empty">Todavía no hay filas válidas.</p>');
+  function decisionTree(container, tree) {
+    if (!tree || typeof tree !== 'object') {
+      shell(container, 'Datos del árbol', 'Agrega un árbol válido para revisar sus probabilidades y pagos.', [], '<p class="problem-data__empty">No hay un árbol válido.</p>');
       return;
     }
-    const columns = Array.from(new Set(dataset.flatMap((row) => Object.keys(row))));
-    const visible = dataset.slice(0, 12);
-    const rows = visible.map((row) => columns.map((column) => escape(row[column] ?? '—')));
-    const extra = dataset.length > visible.length ? `Mostrando ${visible.length} de ${dataset.length} filas.` : `${dataset.length} filas de aprendizaje.`;
-    shell(container, 'Conjunto de aprendizaje', `La tabla refleja exactamente los datos que alimentarán el árbol. La variable objetivo es «${target || 'Jugar'}».`, [
-      {value: String(dataset.length), label: 'ejemplos'},
-      {value: criterion === 'gini' ? 'Gini' : 'Entropía', label: 'criterio'},
-      {value: String(maxDepth), label: 'profundidad máxima'},
-    ], table(columns, rows), extra);
+    const outcomes = [];
+    let decisionCount = 0;
+    let chanceCount = 0;
+    let outcomeCount = 0;
+    const walk = (node, path, probability, accumulatedPayoff) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'terminal') {
+        outcomes.push({path: [...path, node.label || 'Resultado final'].join(' → '), probability, payoff: accumulatedPayoff + Number(node.payoff || 0)});
+        outcomeCount += 1;
+      } else if (node.type === 'decision') {
+        decisionCount += 1;
+        (Array.isArray(node.options) ? node.options : []).forEach((branch) => {
+          const nextPayoff = accumulatedPayoff + Number(branch.payoff || 0);
+          const nextPath = [...path, branch.label || 'Alternativa'];
+          if (branch.next) walk(branch.next, nextPath, probability, nextPayoff);
+          else {
+            outcomes.push({path: nextPath.join(' → '), probability, payoff: nextPayoff});
+            outcomeCount += 1;
+          }
+        });
+      } else if (node.type === 'chance') {
+        chanceCount += 1;
+        (Array.isArray(node.events) ? node.events : []).forEach((event) => {
+          const p = probability * Number(event.probability || 0);
+          const totalPayoff = accumulatedPayoff + Number(event.payoff || 0);
+          const nextPath = [...path, event.label || 'Suceso'];
+          if (event.next) walk(event.next, nextPath, p, totalPayoff);
+          else {
+            outcomes.push({path: nextPath.join(' → '), probability: p, payoff: totalPayoff});
+            outcomeCount += 1;
+          }
+        });
+      }
+    };
+    walk(tree, [], 1, 0);
+    const rows = outcomes.slice(0, 40).map((row) => [
+      escape(row.path),
+      `${format(row.probability * 100)} %`,
+      format(row.payoff),
+    ]);
+    shell(container, 'Mapa de sucesos y pagos', 'La probabilidad mostrada es el producto de los sucesos de una ruta y está condicionada a las alternativas elegidas; rutas de alternativas de decisión distintas no se suman entre sí.', [
+      {value: String(decisionCount), label: 'nodos de decisión'},
+      {value: String(chanceCount), label: 'nodos de azar'},
+      {value: String(outcomeCount), label: 'resultados terminales'},
+    ], table(['Ruta posible', 'Probabilidad condicional', 'Pago acumulado'], rows),
+    outcomes.length > 40 ? `Se muestran 40 de ${outcomes.length} resultados terminales.` : 'Las probabilidades de azar deben sumar 100 % dentro de cada nodo. Las probabilidades de rutas de distintas alternativas de decisión no se suman entre sí. Los pagos positivos son ganancias y los negativos pérdidas.');
   }
 
   function uncertainty(container, alternatives, states, payments, criterion, alpha) {
@@ -95,5 +132,5 @@
     ], table(['Edad t', 'Ingreso r(t)', 'Operación c(t)', 'Desecho s(t)'], rows), 'La edad máxima obliga a reemplazar al inicio del año en que la máquina alcanza ese estado.');
   }
 
-  window.ProblemData = {tree, uncertainty, knapsack, resource, machine, format, escape};
+  window.ProblemData = {decisionTree, uncertainty, knapsack, resource, machine, format, escape};
 })();

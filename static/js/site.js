@@ -8,6 +8,28 @@
   const accentMode = document.getElementById('accent-mode');
   const appearanceReset = document.getElementById('appearance-reset');
 
+  // Mantiene la pista de todos los sliders (velocidad y controles de diagramas)
+  // sincronizada con el valor actual, incluso cuando el diagrama se vuelve a dibujar.
+  const syncRangeProgress = (range) => {
+    if (!(range instanceof HTMLInputElement) || range.type !== 'range') return;
+    const min = Number(range.min || 0);
+    const max = Number(range.max || 100);
+    const value = Number(range.value || 0);
+    const progress = max > min ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 0;
+    range.style.setProperty('--range-progress', `${progress}%`);
+  };
+  document.querySelectorAll('input[type="range"]').forEach(syncRangeProgress);
+  document.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.type === 'range') syncRangeProgress(event.target);
+  });
+  new MutationObserver((records) => {
+    records.forEach((record) => record.addedNodes.forEach((node) => {
+      if (!(node instanceof Element)) return;
+      if (node.matches?.('input[type="range"]')) syncRangeProgress(node);
+      node.querySelectorAll?.('input[type="range"]').forEach(syncRangeProgress);
+    }));
+  }).observe(document.body, {childList: true, subtree: true});
+
   const closeNav = (restoreFocus = false) => {
     if (!drawer) return;
     drawer.classList.remove('is-active');

@@ -36,7 +36,8 @@ def _abrir_navegador(port: int) -> None:
 
 @app.get("/")
 def inicio():
-    return render_template("index.html")
+    tree_json = json.dumps(default_payload()["tree"], ensure_ascii=False, indent=2)
+    return render_template("index.html", default_tree_json=tree_json)
 
 
 @app.get("/api/estado")
@@ -53,27 +54,21 @@ def decision_tree_default():
 def decision_tree_steps():
     body = request.get_json(silent=True) or {}
     try:
-        dataset = body.get("dataset")
-        if isinstance(dataset, str):
-            dataset = json.loads(dataset)
-        steps = build_steps(
-            dataset=dataset,
-            target=str(body.get("target", "Jugar")),
-            criterion=str(body.get("criterion", "entropy")),
-            max_depth=body.get("max_depth", 4),
-            sample_index=body.get("sample_index", 0),
-        )
+        tree = body.get("tree")
+        if isinstance(tree, str):
+            tree = json.loads(tree)
+        steps = build_steps(tree=tree)
     except (ArbolInputError, json.JSONDecodeError) as exc:
-        return jsonify({"ok": False, "mensaje": str(exc), "tipo": "aprendizaje"}), 400
+        return jsonify({"ok": False, "mensaje": str(exc), "tipo": "arbol_decision"}), 400
     except Exception:
+        app.logger.exception("No se pudo construir el árbol de decisión económico")
         return jsonify({
             "ok": False,
-            "mensaje": "No pudimos construir este árbol con esos datos. Revisa que cada fila tenga una clase objetivo y valores de texto sencillos.",
-            "tipo": "aprendizaje",
+            "mensaje": "No pudimos construir el árbol. Revisa las probabilidades, los pagos y la estructura del JSON.",
+            "tipo": "arbol_decision",
         }), 400
 
     return jsonify({"ok": True, "pasos": steps})
-
 
 @app.get("/incertidumbre")
 def incertidumbre():

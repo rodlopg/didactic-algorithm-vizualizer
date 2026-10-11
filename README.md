@@ -6,7 +6,7 @@ Laboratorio educativo en Flask para hacer visibles, paso a paso, algoritmos de t
 
 **Integración final completada.** El laboratorio reúne cinco módulos que comparten el mismo contrato de pasos y la misma experiencia de navegación.
 
-1. **Árboles de decisión** — Entropía + Ganancia de Información, Gini + Reducción de impureza, crecimiento recursivo y recorrido de una observación.
+1. **Árboles de decisión** — nodos de decisión y azar, probabilidades por suceso, pagos por resultado y valor esperado por inducción hacia atrás.
 2. **Decisión bajo incertidumbre** — Laplace, Wald/Maximin, Hurwicz y Savage/Minimax Regret.
 3. **Mochila 0/1** — programación dinámica celda por celda y backtracking.
 4. **Asignación de recursos** — programación dinámica por etapas y estados y reconstrucción de la política.
@@ -137,7 +137,11 @@ El diagrama se genera como SVG desde `static/js/renderers/resource_graph_rendere
 
 ### Árboles de decisión
 
-No se proporcionó una presentación específica de árboles de decisión entre los materiales entregados. Por ello, Entropía, Ganancia de Información, Gini y Reducción de impureza se implementan como definiciones estándar y se identifican así en la interfaz.
+El laboratorio sigue las presentaciones **Toma de Decisiones sin experimentación** y **Toma de Decisiones sin experimentación II**. El árbol comienza con un nodo de decisión cuadrado; sus alternativas conducen a nodos de azar con sucesos, probabilidades y pagos terminales. Se resuelve de derecha a izquierda: cada nodo de azar calcula `VE = Σ p(s) × pago total` y cada nodo de decisión elige la alternativa con mayor valor.
+
+El ejemplo inicial corresponde al presupuesto de una serie: bajo presupuesto tiene pagos `5` y `−1`, con probabilidades `0.6` y `0.4`; alto presupuesto tiene pagos `4` y `−2`, con probabilidades `0.8` y `0.2`. Los valores esperados son `2.6` y `2.8`; por tanto se elige el alto presupuesto. El segundo ejemplo recorre la extensión multinivel de las diapositivas: conserva el pago del fracaso de la primera temporada y muestra por separado el pago terminal de cancelar la serie; reproduce el valor esperado óptimo `6.06` de la primera decisión.
+
+El usuario puede editar el árbol en JSON. Cada nodo `chance` usa `events`, donde cada suceso requiere `probability` y puede tener un `payoff` y un nodo posterior `next`; en una rama con continuación, el pago se suma al valor de ese subárbol. Los nodos `terminal` permiten modelar pagos acumulados, como cancelar una temporada. Las probabilidades en cada nodo de azar tienen que sumar `1` (100 %). El motor valida esta condición y muestra los pagos, aportes ponderados, valores esperados y alternativa óptima paso a paso. No se utiliza entropía ni ganancia de información.
 
 ## Rutas
 
@@ -205,8 +209,8 @@ La prueba automatizada disponible en este entorno valida los motores Python y la
 ### Mochila 0/1: recorrido por columnas
 La tabla `z_k(d)` ahora se revela por columnas: para cada capacidad `d` se recorren los objetos `k=1..n`. La recurrencia no cambia; cambia deliberadamente el orden didáctico del foco visual.
 
-### Árboles de decisión: probabilidades y suma-producto
-Cada rama del árbol expone `p(v)=|S_v|/|S|`. Cuando la métrica es Entropía o Gini, el diagrama también muestra el aporte `p(v)·I(S_v)` y la suma-producto `Σ p(v)·I(S_v)`, que es la impureza ponderada usada para calcular la ganancia/reducción.
+### Árboles de decisión: pagos por resultado e inducción hacia atrás
+El árbol diferencia alternativas controlables y sucesos aleatorios. Cada suceso muestra la probabilidad asignada; cada resultado terminal muestra su pago; y las ramas muestran el aporte `p × pago total`. Los nodos de azar muestran el valor esperado y los nodos de decisión resaltan la alternativa de mayor valor. Las probabilidades de cada nodo de azar se validan para sumar 1.
 
 ### Reemplazo de máquinas
 Se agregó el laboratorio `/reemplazo` siguiendo el ejemplo de **Programación Dinámica III**: la etapa `i` es el año `i`, el estado `t` es la edad de la máquina al inicio de ese año y las acciones son `K` (conservar) o `R` (reemplazar). Al terminar el horizonte se realiza `S` (desechar).
@@ -223,7 +227,7 @@ El diagrama es una red temporal con eje horizontal **Año de decisión**, eje ve
 
 Cada laboratorio genera una ficha **Datos del problema** antes de los controles de reproducción. La ficha se actualiza con los inputs y sirve como comprobación visual del problema que se va a resolver.
 
-- Árboles: conjunto de aprendizaje, variable objetivo, criterio y profundidad.
+- Árboles: nodos de decisión y azar, caminos terminales, probabilidad de ruta y pago acumulado.
 - Incertidumbre: matriz de pagos, alternativas, estados y α de Hurwicz.
 - Mochila 0/1: objetos con identificador `I`, beneficio `Gᵢ` y peso `Vᵢ`.
 - Asignación: brigadas, etapas y matriz de rendimientos.
